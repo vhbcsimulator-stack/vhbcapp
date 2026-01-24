@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: vhbc-api-server
+    runtime: node
+    region: singapore
+    plan: free
+    buildCommand: cd server && npm install
+    startCommand: cd server && npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: GEMINI_MODEL
+        value: gemini-1.5-flash
+      - key: GEMINI_API_BASE
+        value: https://generativelanguage.googleapis.com/v1beta
+      - key: GEMINI_API_KEY
+        sync: false
+    healthCheckPath: /api/health

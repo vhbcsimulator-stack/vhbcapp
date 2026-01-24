@@ -4547,30 +4547,30 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     }
 
     final contextText = _buildHermosaContext(userMessage);
-    final geminiKey = await _getGeminiApiKey();
-    if (geminiKey == null || geminiKey.isEmpty) {
-      return 'Missing GEMINI_API_KEY in assets/env.txt.';
+    final serverUrl = await _getServerUrl();
+    if (serverUrl == null || serverUrl.isEmpty) {
+      return 'Server configuration missing. Please set SERVER_URL in assets/env.txt.';
     }
-    return _requestHermosaReplyFromGemini(
-      apiKey: geminiKey,
+    return _requestHermosaReplyFromServer(
+      serverUrl: serverUrl,
       userMessage: userMessage,
       contextText: contextText,
     );
   }
 
-  Future<String?> _getGeminiApiKey() async {
-    final key = dotenv.env['GEMINI_API_KEY']?.trim();
-    if (key != null && key.isNotEmpty) {
-      return key;
+  Future<String?> _getServerUrl() async {
+    final url = dotenv.env['SERVER_URL']?.trim();
+    if (url != null && url.isNotEmpty) {
+      return url;
     }
     try {
       await dotenv.load(fileName: 'assets/env.txt');
     } catch (_) {}
-    return dotenv.env['GEMINI_API_KEY']?.trim();
+    return dotenv.env['SERVER_URL']?.trim();
   }
 
-  Future<String> _requestHermosaReplyFromGemini({
-    required String apiKey,
+  Future<String> _requestHermosaReplyFromServer({
+    required String serverUrl,
     required String userMessage,
     required String contextText,
   }) async {
@@ -4598,73 +4598,61 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     ];
 
     final configuredModel = dotenv.env['GEMINI_MODEL']?.trim();
-    final models = configuredModel != null && configuredModel.isNotEmpty
-        ? [configuredModel]
-        : const [
-            'gemini-1.5-flash',
-            'gemini-1.5-flash-latest',
-            'gemini-1.5-pro',
-            'gemini-1.5-pro-latest',
-          ];
-    final baseUrls = <String>[
-      ?dotenv.env['GEMINI_API_BASE']?.trim(),
-      'https://generativelanguage.googleapis.com/v1beta',
-      'https://generativelanguage.googleapis.com/v1',
-    ].whereType<String>().where((value) => value.isNotEmpty).toList();
+    final model = configuredModel != null && configuredModel.isNotEmpty
+        ? configuredModel
+        : 'gemini-1.5-flash';
 
-    for (final baseUrl in baseUrls) {
-      for (final model in models) {
-        final result = await _postGeminiContent(
-          baseUrl: baseUrl,
-          model: model,
-          apiKey: apiKey,
-          contents: contents,
-        );
-        if (result.reply != null) {
-          return result.reply!;
-        }
-        if (result.statusCode != 404) {
-          final detail = result.bodySnippet == null ? '' : ' ${result.bodySnippet}';
-          return 'Hermosa is unavailable right now (error ${result.statusCode}).$detail';
-        }
-      }
-    }
-
-    return 'Hermosa is unavailable right now (error 404). Please check GEMINI_MODEL or GEMINI_API_BASE.';
+    return _postToServer(
+      serverUrl: serverUrl,
+      model: model,
+      contents: contents,
+    );
   }
 
-  Future<_GeminiResult> _postGeminiContent({
-    required String baseUrl,
+  Future<String> _postToServer({
+    required String serverUrl,
     required String model,
-    required String apiKey,
     required List<Map<String, dynamic>> contents,
   }) async {
     try {
+      // Remove trailing slash from serverUrl if present
+      final baseUrl = serverUrl.endsWith('/') ? serverUrl.substring(0, serverUrl.length - 1) : serverUrl;
+      final endpoint = '$baseUrl/api/chat';
+      
       final response = await http.post(
-        Uri.parse('$baseUrl/models/$model:generateContent?key=$apiKey'),
+        Uri.parse(endpoint),
         headers: const {
           'Content-Type': 'application/json',
         },
         body: jsonEncode({
           'contents': contents,
-          'generationConfig': {
-            'temperature': 0.3,
-          },
+          'model': model,
         }),
+      ).timeout(
+        const Duration(seconds: 30),
+        onTimeout: () {
+          throw Exception('Request timeout - server took too long to respond');
+        },
       );
 
       if (response.statusCode < 200 || response.statusCode >= 300) {
         debugPrint(
-          'Gemini error ${response.statusCode} for $baseUrl / $model: '
-          '${_truncateResponseBody(response.body) ?? response.body}',
+          'Server error ${response.statusCode}: ${_truncateResponseBody(response.body) ?? response.body}',
         );
-        return _GeminiResult(
-          statusCode: response.statusCode,
-          bodySnippet: _truncateResponseBody(response.body),
-        );
+        
+        // Try to parse error message from server
+        try {
+          final errorData = jsonDecode(response.body) as Map<String, dynamic>;
+          final errorMessage = errorData['message'] ?? errorData['error'] ?? 'Unknown error';
+          return 'Hermosa is unavailable right now: $errorMessage';
+        } catch (_) {
+          return 'Hermosa is unavailable right now (error ${response.statusCode}).';
+        }
       }
 
       final data = jsonDecode(response.body) as Map<String, dynamic>;
+      
+      // Parse Gemini API response format (proxied through our server)
       final candidates = data['candidates'];
       if (candidates is List && candidates.isNotEmpty) {
         final content = candidates.first['content'];
@@ -4673,19 +4661,28 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           if (parts is List && parts.isNotEmpty) {
             final text = parts.first['text']?.toString().trim();
             if (text != null && text.isNotEmpty) {
-              return _GeminiResult(statusCode: response.statusCode, reply: text);
+              return text;
             }
           }
         }
       }
+      
+      // Fallback: check for direct text field
       final fallbackText = data['text']?.toString().trim();
       if (fallbackText != null && fallbackText.isNotEmpty) {
-        return _GeminiResult(statusCode: response.statusCode, reply: fallbackText);
+        return fallbackText;
       }
-      return _GeminiResult(statusCode: response.statusCode);
-    } catch (_) {
-      debugPrint('Gemini request failed for $baseUrl / $model.');
-      return const _GeminiResult(statusCode: 0);
+      
+      return 'Hermosa could not generate a response. Please try again.';
+    } on http.ClientException catch (e) {
+      debugPrint('Network error connecting to server: $e');
+      return 'Could not connect to Hermosa server. Please check your internet connection.';
+    } on FormatException catch (e) {
+      debugPrint('Invalid response format from server: $e');
+      return 'Hermosa sent an invalid response. Please try again.';
+    } catch (e) {
+      debugPrint('Unexpected error calling server: $e');
+      return 'An unexpected error occurred. Please try again later.';
     }
   }
 

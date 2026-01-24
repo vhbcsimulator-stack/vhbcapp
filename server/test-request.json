@@ -1,0 +1,13 @@
+{
+  "contents": [
+    {
+      "role": "user",
+      "parts": [
+        {
+          "text": "Hello, this is a test message. Please respond with a brief greeting."
+        }
+      ]
+    }
+  ],
+  "model": "gemini-2.5-flash"
+}
