@@ -60,6 +60,7 @@ class MyApp extends StatelessWidget {
           backgroundColor: const Color(0xFF0F88D5),
           foregroundColor: Colors.white,
         ),
+        /*
         tabBarTheme: TabBarThemeData(
           labelColor: colorScheme.primary,
           unselectedLabelColor: Colors.grey[600],
@@ -69,6 +70,7 @@ class MyApp extends StatelessWidget {
             fontSize: 13,
           ),
         ),
+        */
         elevatedButtonTheme: ElevatedButtonThemeData(
           style: ElevatedButton.styleFrom(
             backgroundColor: const Color(0xFF0F88D5),

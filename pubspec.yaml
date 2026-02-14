@@ -43,7 +43,7 @@ dependencies:
   path: ^1.9.0
   flutter_local_notifications: ^17.1.0
 
-  youtube_player_flutter: ^9.0.1
+  youtube_player_flutter: 9.0.1
   flutter_web_plugins:
     sdk: flutter
   youtube_player_iframe: ^5.1.2
