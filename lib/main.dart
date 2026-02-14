@@ -6,7 +6,6 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'dart:math';
 import 'dart:convert';
 import 'package:webview_flutter/webview_flutter.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:youtube_player_flutter/youtube_player_flutter.dart' as ypf;
@@ -16,11 +15,12 @@ import 'package:http/http.dart' as http;
 import 'package:flutter_svg/flutter_svg.dart';
 import 'youtube_embed_stub.dart'
     if (dart.library.html) 'youtube_embed_web.dart';
-import 'map_embed_stub.dart'
-    if (dart.library.html) 'map_embed_web.dart';
+import 'map_embed_stub.dart' if (dart.library.html) 'map_embed_web.dart';
 import 'download_helper_stub.dart'
     if (dart.library.html) 'download_helper_web.dart'
     if (dart.library.io) 'download_helper_io.dart';
+import 'cache_manager.dart';
+import 'optimized_image.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -29,7 +29,9 @@ Future<void> main() async {
   final supabaseUrl = dotenv.env['SUPABASE_URL'];
   final supabaseAnonKey = dotenv.env['SUPABASE_ANON_KEY'];
   if (supabaseUrl == null || supabaseAnonKey == null) {
-    throw Exception('Missing Supabase configuration. Please set SUPABASE_URL and SUPABASE_ANON_KEY in .env');
+    throw Exception(
+      'Missing Supabase configuration. Please set SUPABASE_URL and SUPABASE_ANON_KEY in .env',
+    );
   }
 
   await Supabase.initialize(url: supabaseUrl, anonKey: supabaseAnonKey);
@@ -42,7 +44,9 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = ColorScheme.fromSeed(seedColor: const Color(0xFF0F88D5));
+    final colorScheme = ColorScheme.fromSeed(
+      seedColor: const Color(0xFF0F88D5),
+    );
 
     return MaterialApp(
       debugShowCheckedModeBanner: false,
@@ -62,7 +66,10 @@ class MyApp extends StatelessWidget {
           labelColor: colorScheme.primary,
           unselectedLabelColor: Colors.grey[600],
           indicatorColor: colorScheme.primary,
-          labelStyle: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
+          labelStyle: const TextStyle(
+            fontWeight: FontWeight.w800,
+            fontSize: 13,
+          ),
         ),
         elevatedButtonTheme: ElevatedButtonThemeData(
           style: ElevatedButton.styleFrom(
@@ -94,9 +101,9 @@ class _SplashScreenState extends State<SplashScreen> {
   Future<void> _goToHome() async {
     await Future.delayed(const Duration(milliseconds: 1200));
     if (!mounted) return;
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (_) => const HomePage()),
-    );
+    Navigator.of(
+      context,
+    ).pushReplacement(MaterialPageRoute(builder: (_) => const HomePage()));
   }
 
   @override
@@ -155,6 +162,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   bool _isPaymentYearsEnabled = true;
   double _tcpAmount = 0;
   double _pricePerSqm = 0;
+  double _originalPricePerSqm = 0;
   double _monthlyAmortization = 0;
   bool _isComputing = false;
   double _floorLevelIndex = 0;
@@ -162,7 +170,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   double _viewIndex = 0;
   String _selectedView = 'Nature View';
   String _selectedEndUnit = 'No';
-  String _selectedFurnish = 'Semi_Furnished';
+  String _selectedFurnish = 'Semi Finished';
   bool _isLoadingMedia = false;
   bool _isLoadingFutureMedia = false;
   String? _mediaError;
@@ -174,7 +182,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   bool _futureMediaFetched = false;
   final Map<String, List<_YoutubeVideoItem>> _youtubeVideosByProject = {};
   bool _notificationsInitialized = false;
-  final FlutterLocalNotificationsPlugin _localNotifications = FlutterLocalNotificationsPlugin();
+  final FlutterLocalNotificationsPlugin _localNotifications =
+      FlutterLocalNotificationsPlugin();
   RealtimeChannel? _announcementsChannel;
   bool _isLoadingAnnouncements = false;
   String? _announcementsError;
@@ -184,7 +193,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   String? _faqError;
   final Map<String, Uint8List> _faqPdfCache = {};
   final PdfViewerController _faqPdfController = PdfViewerController();
-  final pdfrx.PdfViewerController _faqPdfControllerWeb = pdfrx.PdfViewerController();
+  final pdfrx.PdfViewerController _faqPdfControllerWeb =
+      pdfrx.PdfViewerController();
   double _faqZoomLevel = 1.0;
   final List<_HermosaChatMessage> _hermosaMessages = [];
   late final TextEditingController _hermosaMessageController;
@@ -193,18 +203,37 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   bool _hermosaKbLoading = false;
   String? _hermosaKbError;
   final List<_HermosaKbChunk> _hermosaKbChunks = [];
-  void _openImageGalleryFullScreen(BuildContext viewContext, List<String> images, int startIndex,
-      {List<String>? captions}) {
+  void _openImageGalleryFullScreen(
+    BuildContext viewContext,
+    List<String> images,
+    int startIndex, {
+    List<String>? captions,
+  }) {
     if (images.isEmpty) return;
     _warmImageCache(images);
     final initialPage = startIndex.clamp(0, images.length - 1);
     final controller = PageController(initialPage: initialPage);
+    final transformationControllers = List.generate(
+      images.length,
+      (_) => TransformationController(),
+    );
+    int activeIndex = initialPage;
+    bool isZoomed = false;
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) {
           return StatefulBuilder(
             builder: (context, setState) {
-              int currentIndex = controller.hasClients ? controller.page?.round() ?? initialPage : initialPage;
+              int currentIndex = controller.hasClients
+                  ? controller.page?.round() ?? initialPage
+                  : initialPage;
+              if (currentIndex != activeIndex) {
+                activeIndex = currentIndex;
+                isZoomed =
+                    transformationControllers[activeIndex].value
+                        .getMaxScaleOnAxis() >
+                    1.01;
+              }
               return Scaffold(
                 backgroundColor: Colors.black,
                 appBar: AppBar(
@@ -226,7 +255,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                       color: Colors.white,
                       onSelected: (value) {
                         if (value == 'download') {
-                          final name = captions != null && captions.length == images.length
+                          final name =
+                              captions != null &&
+                                  captions.length == images.length
                               ? captions[currentIndex]
                               : 'image';
                           _downloadImage(context, images[currentIndex], name);
@@ -243,27 +274,61 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                 ),
                 body: PageView.builder(
                   controller: controller,
-                  onPageChanged: (idx) => setState(() => currentIndex = idx),
+                  onPageChanged: (idx) {
+                    setState(() {
+                      activeIndex = idx;
+                      isZoomed =
+                          transformationControllers[activeIndex].value
+                              .getMaxScaleOnAxis() >
+                          1.01;
+                    });
+                  },
+                  physics: isZoomed
+                      ? const NeverScrollableScrollPhysics()
+                      : const PageScrollPhysics(),
                   itemCount: images.length,
                   itemBuilder: (context, index) {
                     final url = images[index];
                     final size = MediaQuery.of(viewContext).size;
                     return Center(
                       child: SizedBox.expand(
-                        child: InteractiveViewer(
-                          minScale: 0.5,
-                          maxScale: 50.0,
-                          child: _cachedNetworkImage(
-                            viewContext,
-                            url,
-                            height: size.height,
-                            width: size.width,
-                            fit: BoxFit.contain,
-                            useFullQuality: true, // Load full quality in fullscreen
-                            placeholder: const CircularProgressIndicator(color: Colors.white),
-                            error: const Text(
-                              'Failed to load image.',
-                              style: TextStyle(color: Colors.white70),
+                        child: Listener(
+                          behavior: HitTestBehavior.opaque,
+                          onPointerDown: (_) {},
+                          child: InteractiveViewer(
+                            transformationController:
+                                transformationControllers[index],
+                            minScale: 1.0,
+                            maxScale: 50.0,
+                            scaleEnabled: true,
+                            panEnabled: true,
+                            onInteractionUpdate: (_) {
+                              if (!mounted) return;
+                              if (index == activeIndex) {
+                                final nowZoomed =
+                                    transformationControllers[index].value
+                                        .getMaxScaleOnAxis() >
+                                    1.01;
+                                if (nowZoomed != isZoomed) {
+                                  setState(() => isZoomed = nowZoomed);
+                                }
+                              }
+                            },
+                            child: _cachedNetworkImage(
+                              viewContext,
+                              url,
+                              height: size.height,
+                              width: size.width,
+                              fit: BoxFit.contain,
+                              useFullQuality:
+                                  true, // Load full quality in fullscreen
+                              placeholder: const CircularProgressIndicator(
+                                color: Colors.white,
+                              ),
+                              error: const Text(
+                                'Failed to load image.',
+                                style: TextStyle(color: Colors.white70),
+                              ),
                             ),
                           ),
                         ),
@@ -278,6 +343,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       ),
     );
   }
+
   bool _isLoadingSalesMap = false;
   String? _salesMapError;
   Map<int, String> _salesMapImages = {};
@@ -334,14 +400,11 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     'Nature View',
     'Facing Amenities',
   ];
-  final List<String> _msccEndUnitOptions = const [
-    'Yes',
-    'No',
-  ];
-  final List<String> _msccFurnishOptions = const [
-    'Semi Furnished',
+  final List<String> _msccEndUnitOptions = const ['Yes', 'No'];
+  List<String> get _msccFurnishOptions => const [
+    'Semi Finished',
     'Bare',
-    'Fully Furnished',
+    'Fully Finished',
   ];
   final List<int> _defaultDownpaymentOptions = const [0, 10, 30, 50, 100];
   final List<int> _msccDownpaymentOptions = const [30, 50, 100];
@@ -400,15 +463,13 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       parent: _homeAnimController,
       curve: const Interval(0.25, 0.55, curve: Curves.easeOut),
     );
-    _heroTextSlide = Tween<Offset>(
-      begin: const Offset(0, -0.25),
-      end: Offset.zero,
-    ).animate(
-      CurvedAnimation(
-        parent: _homeAnimController,
-        curve: const Interval(0.25, 0.55, curve: Curves.easeOut),
-      ),
-    );
+    _heroTextSlide =
+        Tween<Offset>(begin: const Offset(0, -0.25), end: Offset.zero).animate(
+          CurvedAnimation(
+            parent: _homeAnimController,
+            curve: const Interval(0.25, 0.55, curve: Curves.easeOut),
+          ),
+        );
     _cardsScale = Tween<double>(begin: 0.92, end: 1).animate(
       CurvedAnimation(
         parent: _homeAnimController,
@@ -445,12 +506,20 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   void _adjustFaqZoom(double delta) {
     if (kIsWeb) {
       if (!_faqPdfControllerWeb.isReady) return;
-      final newZoom = (_faqPdfControllerWeb.currentZoom + delta).clamp(1.0, 4.0).toDouble();
-      _faqPdfControllerWeb.setZoom(_faqPdfControllerWeb.centerPosition, newZoom, duration: Duration.zero);
+      final newZoom = (_faqPdfControllerWeb.currentZoom + delta)
+          .clamp(1.0, 4.0)
+          .toDouble();
+      _faqPdfControllerWeb.setZoom(
+        _faqPdfControllerWeb.centerPosition,
+        newZoom,
+        duration: Duration.zero,
+      );
       setState(() => _faqZoomLevel = newZoom);
       return;
     }
-    final newZoom = (_faqPdfController.zoomLevel + delta).clamp(1.0, 4.0).toDouble();
+    final newZoom = (_faqPdfController.zoomLevel + delta)
+        .clamp(1.0, 4.0)
+        .toDouble();
     _faqPdfController.zoomLevel = newZoom;
     setState(() => _faqZoomLevel = newZoom);
   }
@@ -459,7 +528,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     final pdfBytes = _faqPdfBytes;
     if (pdfBytes == null) return;
     final assetPath = _faqAssetPathForProject(_projects[_selectedProject]);
-    final projectTitle = _selectedProject >= 0 && _selectedProject < _projectTitles.length
+    final projectTitle =
+        _selectedProject >= 0 && _selectedProject < _projectTitles.length
         ? _projectTitles[_selectedProject]
         : 'Project';
     final controller = PdfViewerController()..zoomLevel = _faqZoomLevel;
@@ -476,7 +546,10 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                 iconTheme: const IconThemeData(color: Colors.white),
                 title: Text(
                   'FAQs $projectTitle',
-                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ),
               body: SafeArea(
@@ -496,7 +569,10 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
               iconTheme: const IconThemeData(color: Colors.white),
               title: Text(
                 'FAQs $projectTitle',
-                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
             ),
             body: SafeArea(
@@ -515,14 +591,75 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     );
   }
 
+  void _openCompanyProfileFullScreen(BuildContext context) {
+    const assetPath = 'assets/company_profile.pdf';
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) {
+          if (kIsWeb) {
+            final webController = pdfrx.PdfViewerController();
+            return Scaffold(
+              backgroundColor: Colors.black,
+              appBar: AppBar(
+                backgroundColor: Colors.black,
+                elevation: 0,
+                iconTheme: const IconThemeData(color: Colors.white),
+                title: const Text(
+                  'Company Profile',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              body: SafeArea(
+                child: pdfrx.PdfViewer.asset(
+                  assetPath,
+                  controller: webController,
+                  params: _companyProfilePdfrxParams(),
+                ),
+              ),
+            );
+          }
+          return Scaffold(
+            backgroundColor: Colors.black,
+            appBar: AppBar(
+              backgroundColor: Colors.black,
+              elevation: 0,
+              iconTheme: const IconThemeData(color: Colors.white),
+              title: const Text(
+                'Company Profile',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+            body: SafeArea(
+              child: SfPdfViewer.asset(
+                assetPath,
+                canShowPaginationDialog: false,
+                canShowScrollHead: true,
+                canShowScrollStatus: true,
+                interactionMode: PdfInteractionMode.pan,
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
   void _onComputeTabChanged() {
-    if (_computeTabIndex != _computeTabController.index && !_computeTabController.indexIsChanging) {
+    if (_computeTabIndex != _computeTabController.index &&
+        !_computeTabController.indexIsChanging) {
       setState(() => _computeTabIndex = _computeTabController.index);
     }
   }
 
   void _onFaqTabChanged() {
-    if (_faqTabIndex != _faqTabController.index && !_faqTabController.indexIsChanging) {
+    if (_faqTabIndex != _faqTabController.index &&
+        !_faqTabController.indexIsChanging) {
       setState(() => _faqTabIndex = _faqTabController.index);
     }
   }
@@ -555,10 +692,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     return Scaffold(
       appBar: _currentIndex <= 5
           ? null
-          : AppBar(
-              title: Text(_titles[_currentIndex]),
-              centerTitle: true,
-            ),
+          : AppBar(title: Text(_titles[_currentIndex]), centerTitle: true),
       body: SafeArea(child: _buildBody()),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _currentIndex,
@@ -642,6 +776,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       _salesMapCommercialImages = {};
       _erhdSalesMapImage = null;
       _msccSalesMapItems = [];
+      _phaseOptions = List.from(_defaultPhases);
+      _phaseIndex = 0;
+      _selectedPhase = _phaseOptions.first;
       _lotCategoryOptions = _lotOptionsForProject(index);
       _lotCategoryIndex = 0;
       _selectedLotCategory = _lotCategoryOptions.first;
@@ -653,12 +790,19 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       _selectedFurnish = _msccFurnishOptions.first;
       _downpaymentOptions = _downpaymentOptionsForProject(index);
       _downpaymentIndex = 0;
+      _paymentYears = 1;
+      _isPaymentYearsEnabled = true;
       _faqError = null;
       _isLoadingFaqDoc = false;
       _faqPdfBytes = _faqPdfCache[projectCode];
       _videosError = null;
       _isLoadingVideos = false;
+      _tcpAmount = 0;
+      _pricePerSqm = 0;
+      _originalPricePerSqm = 0;
+      _monthlyAmortization = 0;
     });
+    _lotSizeController.text = '';
     _updatePaymentYearsConstraints();
     if ((index == 0 || index == 1 || index == 2) && !_isLoadingSalesMap) {
       _loadSalesMaps();
@@ -732,14 +876,22 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
       final dataList = response is List
           ? response
-          : (response is Map && response['data'] is List ? response['data'] as List<dynamic> : <dynamic>[]);
+          : (response is Map && response['data'] is List
+                ? response['data'] as List<dynamic>
+                : <dynamic>[]);
 
       final images = <String>[];
       for (final item in dataList) {
         if (item is! Map) continue;
         final projectName = item['project_name']?.toString();
-        if (projectName == null || projectName.toUpperCase() != project.toUpperCase()) continue;
-        final imageValue = item['image_link'] ?? item['imageLink'] ?? item['image_url'] ?? item['image_URL'];
+        if (projectName == null ||
+            projectName.toUpperCase() != project.toUpperCase())
+          continue;
+        final imageValue =
+            item['image_link'] ??
+            item['imageLink'] ??
+            item['image_url'] ??
+            item['image_URL'];
         final image = imageValue?.toString();
         if (image != null && image.isNotEmpty) {
           images.add(image);
@@ -779,14 +931,22 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
       final dataList = response is List
           ? response
-          : (response is Map && response['data'] is List ? response['data'] as List<dynamic> : <dynamic>[]);
+          : (response is Map && response['data'] is List
+                ? response['data'] as List<dynamic>
+                : <dynamic>[]);
 
       final images = <String>[];
       for (final item in dataList) {
         if (item is! Map) continue;
         final projectName = item['project_name']?.toString();
-        if (projectName == null || projectName.toUpperCase() != project.toUpperCase()) continue;
-        final imageValue = item['image_link'] ?? item['imageLink'] ?? item['image_url'] ?? item['image_URL'];
+        if (projectName == null ||
+            projectName.toUpperCase() != project.toUpperCase())
+          continue;
+        final imageValue =
+            item['image_link'] ??
+            item['imageLink'] ??
+            item['image_url'] ??
+            item['image_URL'];
         final image = imageValue?.toString();
         if (image != null && image.isNotEmpty) {
           images.add(image);
@@ -839,15 +999,24 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
       final dataList = response is List
           ? response
-          : (response is Map && response['data'] is List ? response['data'] as List<dynamic> : <dynamic>[]);
+          : (response is Map && response['data'] is List
+                ? response['data'] as List<dynamic>
+                : <dynamic>[]);
 
       final videos = <_YoutubeVideoItem>[];
       for (final item in dataList) {
         if (item is! Map) continue;
         final projectName = item['project_name']?.toString();
-        if (projectName == null || projectName.toUpperCase() != project.toUpperCase()) continue;
+        if (projectName == null ||
+            projectName.toUpperCase() != project.toUpperCase())
+          continue;
 
-        final rawLink = (item['link'] ?? item['url'] ?? item['video_link'] ?? item['videoUrl'])?.toString();
+        final rawLink =
+            (item['link'] ??
+                    item['url'] ??
+                    item['video_link'] ??
+                    item['videoUrl'])
+                ?.toString();
         if (rawLink == null || rawLink.trim().isEmpty) continue;
         final videoId = _extractYoutubeVideoId(rawLink);
         if (videoId == null) continue;
@@ -893,7 +1062,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
       final dataList = response is List
           ? response
-          : (response is Map && response['data'] is List ? response['data'] as List<dynamic> : <dynamic>[]);
+          : (response is Map && response['data'] is List
+                ? response['data'] as List<dynamic>
+                : <dynamic>[]);
 
       final announcements = <_AnnouncementItem>[];
       for (final item in dataList) {
@@ -949,10 +1120,14 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     await _localNotifications.initialize(settings);
 
     await _localNotifications
-        .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
+        .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin
+        >()
         ?.requestNotificationsPermission();
     await _localNotifications
-        .resolvePlatformSpecificImplementation<IOSFlutterLocalNotificationsPlugin>()
+        .resolvePlatformSpecificImplementation<
+          IOSFlutterLocalNotificationsPlugin
+        >()
         ?.requestPermissions(alert: true, badge: true, sound: true);
 
     _notificationsInitialized = true;
@@ -960,7 +1135,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
   void _subscribeToAnnouncementChanges() {
     _announcementsChannel?.unsubscribe();
-    _announcementsChannel = Supabase.instance.client.channel('public:announcements');
+    _announcementsChannel = Supabase.instance.client.channel(
+      'public:announcements',
+    );
 
     _announcementsChannel!
         .onPostgresChanges(
@@ -970,7 +1147,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           callback: (payload) {
             final record = payload.newRecord;
             final title = (record['title'] ?? '').toString().trim();
-            _showAnnouncementNotification(title.isEmpty ? 'New announcement posted' : title);
+            _showAnnouncementNotification(
+              title.isEmpty ? 'New announcement posted' : title,
+            );
           },
         )
         .subscribe();
@@ -991,7 +1170,10 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       presentBadge: true,
       presentSound: true,
     );
-    const details = NotificationDetails(android: androidDetails, iOS: iosDetails);
+    const details = NotificationDetails(
+      android: androidDetails,
+      iOS: iosDetails,
+    );
 
     await _localNotifications.show(
       DateTime.now().millisecondsSinceEpoch ~/ 1000,
@@ -1004,15 +1186,15 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   bool _isSvgUrl(String url) {
     final uri = Uri.tryParse(url);
     if (uri == null) return false;
-    
+
     // Check file extension
     final path = uri.path.toLowerCase();
     if (path.endsWith('.svg')) return true;
-    
+
     // Check query parameters for format
     final format = uri.queryParameters['format']?.toLowerCase();
     if (format == 'svg') return true;
-    
+
     return false;
   }
 
@@ -1025,11 +1207,13 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     Widget? placeholder,
     Widget? error,
     bool useFullQuality = false,
+    bool allowOptimization = true,
   }) {
+    final normalizedUrl = _normalizeImageUrl(url);
     // Check if the URL is an SVG file
-    if (_isSvgUrl(url)) {
+    if (_isSvgUrl(normalizedUrl)) {
       return SvgPicture.network(
-        url,
+        normalizedUrl,
         width: width,
         height: height,
         fit: fit,
@@ -1038,100 +1222,92 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           width: width,
           color: const Color(0xFFF4F7FB),
           alignment: Alignment.center,
-          child: placeholder ?? const SizedBox(
-            width: 20,
-            height: 20,
-            child: CircularProgressIndicator(strokeWidth: 2),
-          ),
+          child:
+              placeholder ??
+              const SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
         ),
       );
     }
 
-    // FULLSCREEN MODE: Load original high-quality image without cache limits
-    if (useFullQuality) {
-      return CachedNetworkImage(
-        imageUrl: url,
-        width: width,
-        height: height,
-        fit: fit,
-        // No size limits for fullscreen - load original quality
-        fadeInDuration: Duration.zero,
-        fadeOutDuration: Duration.zero,
-        cacheKey: url,
-        errorWidget: (context, _, __) => Container(
+    final mediaQuery = MediaQuery.of(context);
+    final dpr = mediaQuery.devicePixelRatio;
+    final effectiveWidth = (width != null && width.isFinite
+        ? width
+        : mediaQuery.size.width);
+
+    final optimizedUrl = allowOptimization
+        ? _optimizedImageUrl(
+            normalizedUrl,
+            logicalWidth: effectiveWidth,
+            logicalHeight: height,
+            devicePixelRatio: dpr,
+          )
+        : normalizedUrl;
+
+    final provider = NetworkImage(optimizedUrl);
+    bool evicted = false;
+
+    return Image(
+      image: provider,
+      width: width,
+      height: height,
+      fit: fit,
+      frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
+        if (frame != null && !evicted) {
+          // Evict from in-memory cache after first render.
+          evicted = true;
+          imageCache.evict(provider);
+        }
+        return child;
+      },
+      loadingBuilder: (context, child, progress) {
+        if (progress == null) return child;
+        return Container(
           height: height,
           width: width,
           color: const Color(0xFFF4F7FB),
           alignment: Alignment.center,
-          child: error ??
+          child:
+              placeholder ??
+              const SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+        );
+      },
+      errorBuilder: (context, _, __) {
+        if (allowOptimization && optimizedUrl != normalizedUrl) {
+          return _cachedNetworkImage(
+            context,
+            normalizedUrl,
+            width: width,
+            height: height,
+            fit: fit,
+            placeholder: placeholder,
+            error: error,
+            allowOptimization: false,
+          );
+        }
+        debugPrint('Image load failed: $optimizedUrl');
+        return Container(
+          height: height,
+          width: width,
+          color: const Color(0xFFF4F7FB),
+          alignment: Alignment.center,
+          child:
+              error ??
               const Icon(
                 Icons.broken_image,
                 color: Color(0xFF6C7A89),
                 size: 32,
               ),
-        ),
-        placeholder: (context, _) => Container(
-          height: height,
-          width: width,
-          color: const Color(0xFFF4F7FB),
-          alignment: Alignment.center,
-          child: placeholder ?? const SizedBox(
-            width: 20,
-            height: 20,
-            child: CircularProgressIndicator(strokeWidth: 2),
-          ),
-        ),
-      );
-    }
-
-    // GRID/CARD MODE: Use optimized cache sizes for fast mobile loading
-    final mediaQuery = MediaQuery.of(context);
-    final dpr = mediaQuery.devicePixelRatio;
-    final effectiveWidth = (width != null && width.isFinite ? width : mediaQuery.size.width);
-    
-    // MOBILE OPTIMIZATION: Smaller cache sizes (200-800px) for faster loading
-    final targetWidthPx = ((effectiveWidth * dpr).round()).clamp(200, 800);
-    final targetHeightPx = height != null ? ((height * dpr).round()).clamp(200, 800) : null;
-
-    return CachedNetworkImage(
-      imageUrl: url,
-      width: width,
-      height: height,
-      fit: fit,
-      // Memory cache for instant display on subsequent views
-      memCacheWidth: targetWidthPx,
-      memCacheHeight: targetHeightPx,
-      // Disk cache for persistence across app restarts
-      maxWidthDiskCache: targetWidthPx,
-      maxHeightDiskCache: targetHeightPx,
-      // No fade for instant appearance when cached
-      fadeInDuration: Duration.zero,
-      fadeOutDuration: Duration.zero,
-      // Explicit cache key for better cache hits
-      cacheKey: url,
-      errorWidget: (context, _, __) => Container(
-        height: height,
-        width: width,
-        color: const Color(0xFFF4F7FB),
-        alignment: Alignment.center,
-        child: error ??
-            const Icon(
-              Icons.broken_image,
-              color: Color(0xFF6C7A89),
-              size: 32,
-            ),
-      ),
-      placeholder: (context, _) => Container(
-        height: height,
-        width: width,
-        color: const Color(0xFFF4F7FB),
-        alignment: Alignment.center,
-        child: placeholder ?? const SizedBox(
-          width: 20,
-          height: 20,
-          child: CircularProgressIndicator(strokeWidth: 2),
-        ),
-      ),
+        );
+      },
     );
   }
 
@@ -1140,8 +1316,11 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     double? logicalHeight,
     double devicePixelRatio = 2.0,
   }) {
-    final baseWidth = logicalWidth ??
-        (logicalHeight != null ? logicalHeight * 1.2 : 600); // rough fallback to avoid huge downloads
+    final baseWidth =
+        logicalWidth ??
+        (logicalHeight != null
+            ? logicalHeight * 1.2
+            : 600); // rough fallback to avoid huge downloads
     final px = (baseWidth * devicePixelRatio).round();
     return px.clamp(320, 2048).toInt();
   }
@@ -1152,24 +1331,27 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     double? logicalHeight,
     double devicePixelRatio = 2.0,
   }) {
-    final uri = Uri.tryParse(url);
-    if (uri == null) return url;
+    final normalizedUrl = _normalizeImageUrl(url);
+    final uri = Uri.tryParse(normalizedUrl);
+    if (uri == null) return normalizedUrl;
 
     // Don't optimize SVG files
-    if (_isSvgUrl(url)) return url;
+    if (_isSvgUrl(normalizedUrl)) return normalizedUrl;
 
     // Only rewrite Supabase storage URLs; otherwise return as-is.
     final host = uri.host.toLowerCase();
-    final isSupabaseHost = host.contains('supabase.co') || host.contains('supabase.in');
-    
-    // For now, disable optimization to debug the loading issue
-    // TODO: Re-enable once we confirm the Supabase storage supports transformations
-    if (!isSupabaseHost) return url;
-    
-    // Return original URL without transformations for debugging
-    return url;
-    
-    /* Commented out for debugging - uncomment once image loading works
+    final isSupabaseHost =
+        host.contains('supabase.co') || host.contains('supabase.in');
+
+    if (!isSupabaseHost) return normalizedUrl;
+
+    const publicPrefix = '/storage/v1/object/public/';
+    final isRenderPath = uri.path.contains('/storage/v1/render/image/');
+    final isPublicObject = uri.path.contains(publicPrefix);
+    if (!isRenderPath && !isPublicObject) {
+      return normalizedUrl;
+    }
+
     final targetWidthPx = _targetCacheWidthPx(
       logicalWidth: logicalWidth,
       logicalHeight: logicalHeight,
@@ -1183,34 +1365,39 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         : null;
 
     final params = Map<String, String>.from(uri.queryParameters);
-    params['format'] = 'webp';
-    params['quality'] = '75';
+    params.putIfAbsent('format', () => 'webp');
+    params.putIfAbsent('quality', () => '70');
     params['width'] = '$targetWidthPx';
     if (targetHeightPx != null) {
       params['height'] = '$targetHeightPx';
     }
 
-    final optimizedUri = uri.replace(queryParameters: params);
+    final renderPath = isRenderPath
+        ? uri.path
+        : uri.path.replaceFirst(
+            publicPrefix,
+            '/storage/v1/render/image/public/',
+          );
+    final optimizedUri = uri.replace(path: renderPath, queryParameters: params);
     return optimizedUri.toString();
-    */
   }
 
-  void _warmImageCache(List<String> urls, {double? logicalWidth, double? logicalHeight}) {
-    if (!mounted || urls.isEmpty) return;
-    
-    // Preload first 5 images only using native Image.network
-    final imagesToPreload = urls.take(5).toList();
-    
-    for (final url in imagesToPreload) {
-      if (_isSvgUrl(url)) continue; // Skip SVG preloading
-      
-      final provider = NetworkImage(url);
-      
-      // Preload without blocking UI
-      precacheImage(provider, context, onError: (_, __) {
-        // Silently ignore preload errors
-      });
+  String _normalizeImageUrl(String url) {
+    final trimmed = url.trim();
+    if (trimmed.isEmpty) return trimmed;
+    final encoded = Uri.encodeFull(trimmed);
+    final uri = Uri.tryParse(encoded);
+    if (uri == null) return encoded;
+    if (uri.scheme == 'http') {
+      return uri.replace(scheme: 'https').toString();
     }
+    return uri.toString();
+  }
+
+  void _warmImageCache(List<String> urls, {double? logicalHeight}) {
+    if (!mounted || urls.isEmpty) return;
+
+    // Intentionally no-op: user requested no memory caching.
   }
 
   String _sanitizeFileName(String name) {
@@ -1218,7 +1405,11 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     return cleaned.isEmpty ? 'image' : cleaned;
   }
 
-  Future<void> _downloadImage(BuildContext context, String url, String title) async {
+  Future<void> _downloadImage(
+    BuildContext context,
+    String url,
+    String title,
+  ) async {
     try {
       final sanitizedTitle = _sanitizeFileName(title.isEmpty ? 'image' : title);
       final now = DateTime.now();
@@ -1230,7 +1421,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           ? await saveUrlToDownloads(url, fileName)
           : await () async {
               final uri = Uri.parse(url);
-              final byteData = await NetworkAssetBundle(uri).load(uri.toString());
+              final byteData = await NetworkAssetBundle(
+                uri,
+              ).load(uri.toString());
               final bytes = byteData.buffer.asUint8List();
               return saveBytesToDownloads(bytes, fileName);
             }();
@@ -1238,16 +1431,18 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              savedPath != null ? 'Downloaded to $savedPath' : 'Download is not supported on this platform.',
+              savedPath != null
+                  ? 'Downloaded to $savedPath'
+                  : 'Download is not supported on this platform.',
             ),
           ),
         );
       }
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Download failed: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Download failed: $e')));
       }
     }
   }
@@ -1257,7 +1452,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     if (assetPath == null) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('No FAQ document available to download.')),
+          const SnackBar(
+            content: Text('No FAQ document available to download.'),
+          ),
         );
       }
       return;
@@ -1276,15 +1473,17 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            savedPath != null ? 'Downloaded to $savedPath' : 'Download is not supported on this platform.',
+            savedPath != null
+                ? 'Downloaded to $savedPath'
+                : 'Download is not supported on this platform.',
           ),
         ),
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Download failed: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Download failed: $e')));
     }
   }
 
@@ -1307,14 +1506,17 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
       final dataList = response is List
           ? response
-          : (response is Map && response['data'] is List ? response['data'] as List<dynamic> : <dynamic>[]);
+          : (response is Map && response['data'] is List
+                ? response['data'] as List<dynamic>
+                : <dynamic>[]);
 
       if (project == 'ERHD') {
         String? imageUrl;
         for (final item in dataList) {
           if (item is! Map) continue;
           final projectValue = item['project']?.toString();
-          if (projectValue != null && projectValue.toUpperCase() != project) continue;
+          if (projectValue != null && projectValue.toUpperCase() != project)
+            continue;
           final imageValue = item['image_URL'] ?? item['image_url'];
           final candidate = imageValue?.toString();
           if (candidate != null && candidate.isNotEmpty) {
@@ -1343,7 +1545,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         for (final item in dataList) {
           if (item is! Map) continue;
           final projectValue = item['project']?.toString();
-          if (projectValue == null || projectValue.toUpperCase() != project) continue;
+          if (projectValue == null || projectValue.toUpperCase() != project)
+            continue;
           final imageValue = item['image_URL'] ?? item['image_url'];
           final imageUrl = imageValue?.toString();
           if (imageUrl == null || imageUrl.isEmpty) continue;
@@ -1358,7 +1561,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           } else if (phaseUpper != null) {
             phaseNumber = int.tryParse(phaseUpper.toString());
           }
-          if (phaseNumber == null && phasesRow is Map && phasesRow['name'] != null) {
+          if (phaseNumber == null &&
+              phasesRow is Map &&
+              phasesRow['name'] != null) {
             final nameString = phasesRow['name'].toString();
             final match = RegExp(r'\d+').firstMatch(nameString);
             if (match != null) {
@@ -1376,7 +1581,12 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
           final title = 'Floor ${floorNumber ?? (msccItems.length + 1)}';
 
-          msccItems.add(MapEntry(floorNumber, _SalesMapGalleryItem(title: title, url: imageUrl)));
+          msccItems.add(
+            MapEntry(
+              floorNumber,
+              _SalesMapGalleryItem(title: title, url: imageUrl),
+            ),
+          );
         }
 
         msccItems.sort((a, b) {
@@ -1435,7 +1645,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           phaseNumber = int.tryParse(phaseUpper.toString());
         }
         // fallback: parse from phases.name like "PHASE 1"
-        if (phaseNumber == null && phasesRow is Map && phasesRow['name'] != null) {
+        if (phaseNumber == null &&
+            phasesRow is Map &&
+            phasesRow['name'] != null) {
           final nameString = phasesRow['name'].toString();
           final match = RegExp(r'\d+').firstMatch(nameString);
           if (match != null) {
@@ -1450,7 +1662,10 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
         final imageUrl = imageValue?.toString();
         final isCommercial = normalizedType == 'commercial';
-        final isResidential = normalizedType == 'residential' || normalizedType == null || normalizedType.isEmpty;
+        final isResidential =
+            normalizedType == 'residential' ||
+            normalizedType == null ||
+            normalizedType.isEmpty;
 
         if (phaseNumber != null && imageUrl != null && imageUrl.isNotEmpty) {
           if (isCommercial) {
@@ -1583,7 +1798,10 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     if (monthlyRate == 0) {
       return balance / months;
     }
-    final factor = monthlyRate * (pow(1 + monthlyRate, months)) / (pow(1 + monthlyRate, months) - 1);
+    final factor =
+        monthlyRate *
+        (pow(1 + monthlyRate, months)) /
+        (pow(1 + monthlyRate, months) - 1);
     return balance * factor;
   }
 
@@ -1656,7 +1874,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
   double _msccViewAdditional(double baseTcp) {
     if (_projects[_selectedProject] != 'MSCC') return 0;
-    return _selectedView.toLowerCase().contains('facing amenities') ? baseTcp * 0.05 : 0;
+    return _selectedView.toLowerCase().contains('facing amenities')
+        ? baseTcp * 0.05
+        : 0;
   }
 
   double _msccEndUnitAdditional(double baseTcp) {
@@ -1674,9 +1894,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
   void _showMessage(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   Future<void> _computeMsccPrice() async {
@@ -1684,14 +1904,19 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       _isComputing = true;
       _tcpAmount = 0;
       _pricePerSqm = 0;
+      _originalPricePerSqm = 0;
       _monthlyAmortization = 0;
     });
 
     try {
-      final dynamic response = await Supabase.instance.client.from('mscc_price').select();
+      final dynamic response = await Supabase.instance.client
+          .from('mscc_price')
+          .select();
       final dataList = response is List
           ? response
-          : (response is Map && response['data'] is List ? response['data'] as List<dynamic> : <dynamic>[]);
+          : (response is Map && response['data'] is List
+                ? response['data'] as List<dynamic>
+                : <dynamic>[]);
 
       Map<String, dynamic>? selectedRow;
       final normalizedUnit = _normalizeKey(_selectedLotCategory);
@@ -1703,25 +1928,38 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       for (final item in dataList) {
         if (item is! Map) continue;
         final row = item.cast<String, dynamic>();
-        final unitValue = (row['unit_type'] ?? row['unitType'] ?? row['unit'] ?? row['type'])?.toString();
-        if (unitValue == null || _normalizeKey(unitValue) != normalizedUnit) continue;
+        final unitValue =
+            (row['unit_type'] ?? row['unitType'] ?? row['unit'] ?? row['type'])
+                ?.toString();
+        if (unitValue == null || _normalizeKey(unitValue) != normalizedUnit)
+          continue;
 
         bool matches = true;
-        final floorValue = (row['floor_level'] ?? row['floorLevel'] ?? row['floor'])?.toString();
-        if (floorValue != null && _normalizeKey(floorValue) != normalizedFloor) {
+        final floorValue =
+            (row['floor_level'] ?? row['floorLevel'] ?? row['floor'])
+                ?.toString();
+        if (floorValue != null &&
+            _normalizeKey(floorValue) != normalizedFloor) {
           matches = false;
         }
-        final viewValue = (row['view'] ?? row['view_type'] ?? row['viewType'])?.toString();
+        final viewValue = (row['view'] ?? row['view_type'] ?? row['viewType'])
+            ?.toString();
         if (viewValue != null && _normalizeKey(viewValue) != normalizedView) {
           matches = false;
         }
         final endUnitValue = (row['end_unit'] ?? row['endUnit'])?.toString();
-        if (endUnitValue != null && _normalizeKey(endUnitValue) != normalizedEndUnit) {
+        if (endUnitValue != null &&
+            _normalizeKey(endUnitValue) != normalizedEndUnit) {
           matches = false;
         }
         final furnishValue =
-            (row['furnish'] ?? row['furnish_type'] ?? row['type_of_furnish'] ?? row['furnishType'])?.toString();
-        if (furnishValue != null && _normalizeKey(furnishValue) != normalizedFurnish) {
+            (row['furnish'] ??
+                    row['furnish_type'] ??
+                    row['type_of_furnish'] ??
+                    row['furnishType'])
+                ?.toString();
+        if (furnishValue != null &&
+            _normalizeKey(furnishValue) != normalizedFurnish) {
           matches = false;
         }
 
@@ -1743,8 +1981,11 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         return;
       }
 
-      final pricePerSqm =
-          _parseDouble(selectedRow['price_per_sqm'] ?? selectedRow['pricePerSqm'] ?? selectedRow['price']);
+      final pricePerSqm = _parseDouble(
+        selectedRow['price_per_sqm'] ??
+            selectedRow['pricePerSqm'] ??
+            selectedRow['price'],
+      );
       if (pricePerSqm == null) {
         _showMessage('Price per sqm is missing for the selected MSCC unit.');
         return;
@@ -1766,21 +2007,23 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       final viewExtra = _msccViewAdditional(baseTcp);
       final endUnitExtra = _msccEndUnitAdditional(baseTcp);
       final furnishAdjust = _msccFurnishAdjustment(baseTcp);
-      final tcp = baseTcp + floorExtra + viewExtra + endUnitExtra + furnishAdjust;
+      final tcp =
+          baseTcp + floorExtra + viewExtra + endUnitExtra + furnishAdjust;
       final amortization = _computeMonthlyAmortization(tcp, effectiveArea);
 
       setState(() {
+        _originalPricePerSqm = pricePerSqm;
         _pricePerSqm = discountedPricePerSqm;
         _tcpAmount = tcp;
         _monthlyAmortization = amortization;
       });
 
-      if (unitArea == null) {
-      }
+      if (unitArea == null) {}
     } catch (e) {
       setState(() {
         _tcpAmount = 0;
         _pricePerSqm = 0;
+        _originalPricePerSqm = 0;
         _monthlyAmortization = 0;
       });
       _showMessage('Failed to fetch MSCC price: $e');
@@ -1805,6 +2048,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       setState(() {
         _tcpAmount = 0;
         _pricePerSqm = 0;
+        _originalPricePerSqm = 0;
         _monthlyAmortization = 0;
       });
       _showMessage('Pricing is available for MVLC and ERHD only.');
@@ -1816,6 +2060,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       setState(() {
         _tcpAmount = 0;
         _pricePerSqm = 0;
+        _originalPricePerSqm = 0;
         _monthlyAmortization = 0;
       });
       _showMessage('Enter a valid lot size.');
@@ -1837,8 +2082,12 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     }
     int phaseNumber = 1;
     if (isMvProject) {
-      final phaseNumberString = RegExp(r'\d+').firstMatch(_selectedPhase)?.group(0);
-      final parsed = phaseNumberString != null ? int.tryParse(phaseNumberString) : null;
+      final phaseNumberString = RegExp(
+        r'\d+',
+      ).firstMatch(_selectedPhase)?.group(0);
+      final parsed = phaseNumberString != null
+          ? int.tryParse(phaseNumberString)
+          : null;
       phaseNumber = parsed ?? (_phaseIndex.round() + 1);
       if (phaseNumber < 1 || phaseNumber > _phaseOptions.length) {
         phaseNumber = 1;
@@ -1851,31 +2100,39 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       final tableName = isMvProject ? 'mvlc_price' : 'erhd_price';
       final response = isMvProject
           ? await Supabase.instance.client
-              .from(tableName)
-              .select()
-              .eq('phase', phaseNumber)
-              .limit(1)
+                .from(tableName)
+                .select()
+                .eq('phase', phaseNumber)
+                .limit(1)
           : await Supabase.instance.client.from(tableName).select().limit(1);
 
       final dataList = response as List<dynamic>? ?? [];
-      final data = dataList.isNotEmpty ? dataList.first as Map<String, dynamic>? : null;
+      final data = dataList.isNotEmpty
+          ? dataList.first as Map<String, dynamic>?
+          : null;
 
       if (data == null || !data.containsKey(categoryKey)) {
         setState(() {
           _tcpAmount = 0;
           _pricePerSqm = 0;
+          _originalPricePerSqm = 0;
           _monthlyAmortization = 0;
         });
-        _showMessage('No price found for ${isMvProject ? _selectedPhase : project} / $_selectedLotCategory.');
+        _showMessage(
+          'No price found for ${isMvProject ? _selectedPhase : project} / $_selectedLotCategory.',
+        );
         return;
       }
 
       final priceValue = data[categoryKey];
-      final price = priceValue is num ? priceValue.toDouble() : double.tryParse(priceValue.toString());
+      final price = priceValue is num
+          ? priceValue.toDouble()
+          : double.tryParse(priceValue.toString());
       if (price == null) {
         setState(() {
           _tcpAmount = 0;
           _pricePerSqm = 0;
+          _originalPricePerSqm = 0;
           _monthlyAmortization = 0;
         });
         _showMessage('Price data is invalid.');
@@ -1885,6 +2142,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       setState(() {
         final discountedPrice = _discountedPricePerSqm(price, lotSize);
         _tcpAmount = discountedPrice * lotSize;
+        _originalPricePerSqm = price;
         _pricePerSqm = discountedPrice;
         _monthlyAmortization = _computeMonthlyAmortization(_tcpAmount, lotSize);
       });
@@ -1892,6 +2150,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       setState(() {
         _tcpAmount = 0;
         _pricePerSqm = 0;
+        _originalPricePerSqm = 0;
         _monthlyAmortization = 0;
       });
       _showMessage('Failed to fetch price: $e');
@@ -1905,17 +2164,30 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   Widget _buildCompute() {
     final colorScheme = Theme.of(context).colorScheme;
     final isMsccProject = _projects[_selectedProject] == 'MSCC';
-        return LayoutBuilder(
-          builder: (context, constraints) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
         final bottomInset = MediaQuery.of(context).padding.bottom;
         // Reserve space for the bottom nav so the card never tucks underneath it.
         final navPadding = kBottomNavigationBarHeight + 8;
-          final double safeHeight = (constraints.maxHeight - bottomInset).clamp(0.0, double.infinity).toDouble();
-          final double heroHeight = safeHeight * 0.20;
-          final double cardHeight = (safeHeight - heroHeight - navPadding).clamp(320.0, safeHeight).toDouble();
-          final double decorLarge = (constraints.maxWidth * 0.28).clamp(140.0, 220.0);
-          final double decorMedium = (constraints.maxWidth * 0.22).clamp(110.0, 180.0);
-          final double decorSmall = (constraints.maxWidth * 0.16).clamp(80.0, 120.0);
+        final double safeHeight = (constraints.maxHeight - bottomInset)
+            .clamp(0.0, double.infinity)
+            .toDouble();
+        final double heroHeight = safeHeight * 0.20;
+        final double cardHeight = (safeHeight - heroHeight - navPadding)
+            .clamp(320.0, safeHeight)
+            .toDouble();
+        final double decorLarge = (constraints.maxWidth * 0.28).clamp(
+          140.0,
+          220.0,
+        );
+        final double decorMedium = (constraints.maxWidth * 0.22).clamp(
+          110.0,
+          180.0,
+        );
+        final double decorSmall = (constraints.maxWidth * 0.16).clamp(
+          80.0,
+          120.0,
+        );
         final downpaymentValue = _downpaymentOptions[_downpaymentIndex.round()];
         final isZeroDown = downpaymentValue == 0;
         final maxPaymentYears = _isPaymentYearsEnabled
@@ -1937,49 +2209,51 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                 ),
               ),
             ),
-              Positioned(
-                top: -30,
-                left: -50,
-                child: Container(
-                  width: decorLarge,
-                  height: decorLarge,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: Colors.white.withOpacity(0.08),
-                  ),
+            Positioned(
+              top: -30,
+              left: -50,
+              child: Container(
+                width: decorLarge,
+                height: decorLarge,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.white.withOpacity(0.08),
                 ),
               ),
-              Positioned(
-                top: 20,
-                right: -40,
-                child: Container(
-                  width: decorMedium,
-                  height: decorMedium,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(28),
-                    color: Colors.white.withOpacity(0.06),
-                  ),
+            ),
+            Positioned(
+              top: 20,
+              right: -40,
+              child: Container(
+                width: decorMedium,
+                height: decorMedium,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(28),
+                  color: Colors.white.withOpacity(0.06),
                 ),
               ),
+            ),
             Positioned(
               top: 0,
               right: 0,
               child: CustomPaint(
                 size: const Size(130, 120),
-                painter: _TrianglePainter(color: Colors.white.withOpacity(0.10)),
+                painter: _TrianglePainter(
+                  color: Colors.white.withOpacity(0.10),
+                ),
               ),
             ),
-              Positioned(
-                bottom: heroHeight * 0.4,
-                left: 24,
-                child: Container(
-                  width: decorSmall,
-                  height: decorSmall,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: Colors.black.withOpacity(0.06),
-                  ),
+            Positioned(
+              bottom: heroHeight * 0.4,
+              left: 24,
+              child: Container(
+                width: decorSmall,
+                height: decorSmall,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.black.withOpacity(0.06),
                 ),
+              ),
             ),
             Align(
               alignment: Alignment.topCenter,
@@ -1991,7 +2265,16 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
-                        'Price per sqm: ₱${_formatCurrency(_pricePerSqm)}',
+                        '${isMsccProject ? "Base Price" : "Original price"} per sqm: ₱${_formatCurrency(_originalPricePerSqm)}',
+                        style: const TextStyle(
+                          color: Colors.white70,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Discounted Price per sqm: ₱${_formatCurrency(_pricePerSqm)}',
                         style: const TextStyle(
                           color: Colors.white,
                           fontSize: 16,
@@ -2038,7 +2321,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                   height: cardHeight,
                   decoration: BoxDecoration(
                     color: Colors.white,
-                    borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
+                    borderRadius: const BorderRadius.vertical(
+                      top: Radius.circular(30),
+                    ),
                     boxShadow: [
                       BoxShadow(
                         color: Colors.black.withOpacity(0.12),
@@ -2053,12 +2338,15 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                       builder: (context, innerConstraints) {
                         return SingleChildScrollView(
                           child: ConstrainedBox(
-                            constraints: BoxConstraints(minHeight: innerConstraints.maxHeight),
+                            constraints: BoxConstraints(
+                              minHeight: innerConstraints.maxHeight,
+                            ),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
                                   children: [
                                     const Text(
                                       'Payment Calculator',
@@ -2068,7 +2356,10 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                                         color: Color(0xFF2D3A4B),
                                       ),
                                     ),
-                                    Icon(Icons.payments_outlined, color: const Color(0xFF2BB673)),
+                                    Icon(
+                                      Icons.payments_outlined,
+                                      color: const Color(0xFF2BB673),
+                                    ),
                                   ],
                                 ),
                                 TabBar(
@@ -2076,7 +2367,10 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                                   labelColor: colorScheme.primary,
                                   unselectedLabelColor: const Color(0xFF6C7A89),
                                   indicatorColor: colorScheme.primary,
-                                  labelStyle: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
+                                  labelStyle: const TextStyle(
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: 13,
+                                  ),
                                   tabs: const [
                                     Tab(text: 'In-House Financing'),
                                     Tab(text: 'Bank Financing'),
@@ -2096,23 +2390,40 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                                     const SizedBox(height: 8),
                                     TextField(
                                       controller: _lotSizeController,
-                                      keyboardType: TextInputType.numberWithOptions(decimal: true),
+                                      keyboardType:
+                                          TextInputType.numberWithOptions(
+                                            decimal: true,
+                                          ),
                                       onChanged: _onLotSizeChanged,
                                       inputFormatters: [
-                                        FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
+                                        FilteringTextInputFormatter.allow(
+                                          RegExp(r'[0-9.]'),
+                                        ),
                                       ],
                                       decoration: InputDecoration(
                                         hintText: 'Enter lot size',
-                                        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                                        contentPadding:
+                                            const EdgeInsets.symmetric(
+                                              horizontal: 14,
+                                              vertical: 12,
+                                            ),
                                         filled: true,
                                         fillColor: const Color(0xFFF4F7FB),
                                         border: OutlineInputBorder(
-                                          borderRadius: BorderRadius.circular(12),
-                                          borderSide: const BorderSide(color: Color(0xFFE4E9F1)),
+                                          borderRadius: BorderRadius.circular(
+                                            12,
+                                          ),
+                                          borderSide: const BorderSide(
+                                            color: Color(0xFFE4E9F1),
+                                          ),
                                         ),
                                         enabledBorder: OutlineInputBorder(
-                                          borderRadius: BorderRadius.circular(12),
-                                          borderSide: const BorderSide(color: Color(0xFFE4E9F1)),
+                                          borderRadius: BorderRadius.circular(
+                                            12,
+                                          ),
+                                          borderSide: const BorderSide(
+                                            color: Color(0xFFE4E9F1),
+                                          ),
                                         ),
                                       ),
                                     ),
@@ -2120,7 +2431,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                                   ],
                                   if (_selectedProject == 0) ...[
                                     Row(
-                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.spaceBetween,
                                       children: [
                                         Text(
                                           'Phase',
@@ -2130,30 +2442,41 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                                             color: Colors.grey[800],
                                           ),
                                         ),
-                                      Text(
-                                        _selectedPhase,
-                                        style: TextStyle(
-                                          fontSize: 14,
-                                          fontWeight: FontWeight.w800,
-                                          color: colorScheme.primary,
+                                        Text(
+                                          _selectedPhase,
+                                          style: TextStyle(
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w800,
+                                            color: colorScheme.primary,
+                                          ),
                                         ),
-                                      ),
-                                    ],
-                                  ),
-                                  SliderTheme(
-                                    data: SliderTheme.of(context).copyWith(
-                                      activeTrackColor: colorScheme.primary,
-                                      inactiveTrackColor: const Color(0xFFE0E6EF),
-                                      thumbColor: colorScheme.primary,
-                                      overlayColor: const Color(0x1F0F88D5),
+                                      ],
                                     ),
+                                    SliderTheme(
+                                      data: SliderTheme.of(context).copyWith(
+                                        activeTrackColor: colorScheme.primary,
+                                        inactiveTrackColor: const Color(
+                                          0xFFE0E6EF,
+                                        ),
+                                        thumbColor: colorScheme.primary,
+                                        overlayColor: const Color(0x1F0F88D5),
+                                      ),
                                       child: Slider(
                                         min: 0,
-                                        max: (_phaseOptions.length - 1).toDouble(),
-                                        divisions: _phaseOptions.length > 1 ? _phaseOptions.length - 1 : 1,
-                                        value: _phaseIndex.clamp(0, (_phaseOptions.length - 1).toDouble()),
+                                        max: (_phaseOptions.length - 1)
+                                            .toDouble(),
+                                        divisions: _phaseOptions.length > 1
+                                            ? _phaseOptions.length - 1
+                                            : 1,
+                                        value: _phaseIndex.clamp(
+                                          0,
+                                          (_phaseOptions.length - 1).toDouble(),
+                                        ),
                                         onChanged: (val) {
-                                          final idx = val.round().clamp(0, _phaseOptions.length - 1);
+                                          final idx = val.round().clamp(
+                                            0,
+                                            _phaseOptions.length - 1,
+                                          );
                                           setState(() {
                                             _phaseIndex = idx.toDouble();
                                             _selectedPhase = _phaseOptions[idx];
@@ -2164,10 +2487,13 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                                     const SizedBox(height: 16),
                                   ],
                                   Row(
-                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceBetween,
                                     children: [
                                       Text(
-                                        isMsccProject ? 'Unit type' : 'Lot category',
+                                        isMsccProject
+                                            ? 'Unit type'
+                                            : 'Lot category',
                                         style: TextStyle(
                                           fontSize: 14,
                                           fontWeight: FontWeight.w700,
@@ -2187,20 +2513,33 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                                   SliderTheme(
                                     data: SliderTheme.of(context).copyWith(
                                       activeTrackColor: colorScheme.primary,
-                                      inactiveTrackColor: const Color(0xFFE0E6EF),
+                                      inactiveTrackColor: const Color(
+                                        0xFFE0E6EF,
+                                      ),
                                       thumbColor: colorScheme.primary,
                                       overlayColor: const Color(0x1F0F88D5),
                                     ),
                                     child: Slider(
                                       min: 0,
-                                      max: (_lotCategoryOptions.length - 1).toDouble(),
-                                      divisions: _lotCategoryOptions.length > 1 ? _lotCategoryOptions.length - 1 : 1,
-                                      value: _lotCategoryIndex.clamp(0, (_lotCategoryOptions.length - 1).toDouble()),
+                                      max: (_lotCategoryOptions.length - 1)
+                                          .toDouble(),
+                                      divisions: _lotCategoryOptions.length > 1
+                                          ? _lotCategoryOptions.length - 1
+                                          : 1,
+                                      value: _lotCategoryIndex.clamp(
+                                        0,
+                                        (_lotCategoryOptions.length - 1)
+                                            .toDouble(),
+                                      ),
                                       onChanged: (val) {
-                                        final idx = val.round().clamp(0, _lotCategoryOptions.length - 1);
+                                        final idx = val.round().clamp(
+                                          0,
+                                          _lotCategoryOptions.length - 1,
+                                        );
                                         setState(() {
                                           _lotCategoryIndex = idx.toDouble();
-                                          _selectedLotCategory = _lotCategoryOptions[idx];
+                                          _selectedLotCategory =
+                                              _lotCategoryOptions[idx];
                                         });
                                       },
                                     ),
@@ -2208,7 +2547,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                                   const SizedBox(height: 18),
                                   if (isMsccProject) ...[
                                     Row(
-                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.spaceBetween,
                                       children: [
                                         Text(
                                           'Floor level',
@@ -2231,21 +2571,33 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                                     SliderTheme(
                                       data: SliderTheme.of(context).copyWith(
                                         activeTrackColor: colorScheme.primary,
-                                        inactiveTrackColor: const Color(0xFFE0E6EF),
+                                        inactiveTrackColor: const Color(
+                                          0xFFE0E6EF,
+                                        ),
                                         thumbColor: colorScheme.primary,
                                         overlayColor: const Color(0x1F0F88D5),
                                       ),
                                       child: Slider(
                                         min: 0,
-                                        max: (_msccFloorLevels.length - 1).toDouble(),
-                                        divisions:
-                                            _msccFloorLevels.length > 1 ? _msccFloorLevels.length - 1 : 1,
-                                        value: _floorLevelIndex.clamp(0, (_msccFloorLevels.length - 1).toDouble()),
+                                        max: (_msccFloorLevels.length - 1)
+                                            .toDouble(),
+                                        divisions: _msccFloorLevels.length > 1
+                                            ? _msccFloorLevels.length - 1
+                                            : 1,
+                                        value: _floorLevelIndex.clamp(
+                                          0,
+                                          (_msccFloorLevels.length - 1)
+                                              .toDouble(),
+                                        ),
                                         onChanged: (val) {
-                                          final idx = val.round().clamp(0, _msccFloorLevels.length - 1);
+                                          final idx = val.round().clamp(
+                                            0,
+                                            _msccFloorLevels.length - 1,
+                                          );
                                           setState(() {
                                             _floorLevelIndex = idx.toDouble();
-                                            _selectedFloorLevel = _msccFloorLevels[idx];
+                                            _selectedFloorLevel =
+                                                _msccFloorLevels[idx];
                                           });
                                         },
                                       ),
@@ -2253,11 +2605,17 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                                     const SizedBox(height: 18),
                                     LayoutBuilder(
                                       builder: (context, ddConstraints) {
-                                        final totalWidth = ddConstraints.maxWidth;
-                                        final threeColWidth = (totalWidth - 24) / 3;
-                                        final twoColWidth = (totalWidth - 12) / 2;
-                                        final fieldWidth = (threeColWidth < 160 ? twoColWidth : threeColWidth)
-                                            .clamp(120.0, totalWidth);
+                                        final totalWidth =
+                                            ddConstraints.maxWidth;
+                                        final threeColWidth =
+                                            (totalWidth - 24) / 3;
+                                        final twoColWidth =
+                                            (totalWidth - 12) / 2;
+                                        final fieldWidth =
+                                            (threeColWidth < 160
+                                                    ? twoColWidth
+                                                    : threeColWidth)
+                                                .clamp(120.0, totalWidth);
                                         return Wrap(
                                           spacing: 12,
                                           runSpacing: 12,
@@ -2265,54 +2623,91 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                                             SizedBox(
                                               width: fieldWidth,
                                               child: Column(
-                                                crossAxisAlignment: CrossAxisAlignment.start,
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment.start,
                                                 children: [
                                                   Text(
                                                     'View',
                                                     style: TextStyle(
                                                       fontSize: 14,
-                                                      fontWeight: FontWeight.w700,
+                                                      fontWeight:
+                                                          FontWeight.w700,
                                                       color: Colors.grey[800],
                                                     ),
                                                   ),
                                                   const SizedBox(height: 8),
-                                                  DropdownButtonFormField<String>(
-                                                    value: _selectedView,
+                                                  DropdownButtonFormField<
+                                                    String
+                                                  >(
+                                                    initialValue: _selectedView,
                                                     items: _msccViewOptions
                                                         .map(
-                                                          (view) => DropdownMenuItem<String>(
-                                                            value: view,
-                                                            child: Text(
-                                                              view,
-                                                              style: const TextStyle(fontSize: 14),
-                                                            ),
-                                                          ),
+                                                          (view) =>
+                                                              DropdownMenuItem<
+                                                                String
+                                                              >(
+                                                                value: view,
+                                                                child: Text(
+                                                                  view,
+                                                                  style:
+                                                                      const TextStyle(
+                                                                        fontSize:
+                                                                            14,
+                                                                      ),
+                                                                ),
+                                                              ),
                                                         )
                                                         .toList(),
                                                     onChanged: (val) {
                                                       if (val == null) return;
                                                       setState(() {
                                                         _selectedView = val;
-                                                        _viewIndex = _msccViewOptions.indexOf(val).toDouble();
+                                                        _viewIndex =
+                                                            _msccViewOptions
+                                                                .indexOf(val)
+                                                                .toDouble();
                                                       });
                                                     },
                                                     decoration: InputDecoration(
-                                                      contentPadding: const EdgeInsets.symmetric(
-                                                        horizontal: 14,
-                                                        vertical: 12,
-                                                      ),
+                                                      contentPadding:
+                                                          const EdgeInsets.symmetric(
+                                                            horizontal: 14,
+                                                            vertical: 12,
+                                                          ),
                                                       filled: true,
-                                                      fillColor: const Color(0xFFF4F7FB),
+                                                      fillColor: const Color(
+                                                        0xFFF4F7FB,
+                                                      ),
                                                       border: OutlineInputBorder(
-                                                        borderRadius: BorderRadius.circular(12),
-                                                        borderSide: const BorderSide(color: Color(0xFFE4E9F1)),
+                                                        borderRadius:
+                                                            BorderRadius.circular(
+                                                              12,
+                                                            ),
+                                                        borderSide:
+                                                            const BorderSide(
+                                                              color: Color(
+                                                                0xFFE4E9F1,
+                                                              ),
+                                                            ),
                                                       ),
-                                                      enabledBorder: OutlineInputBorder(
-                                                        borderRadius: BorderRadius.circular(12),
-                                                        borderSide: const BorderSide(color: Color(0xFFE4E9F1)),
-                                                      ),
+                                                      enabledBorder:
+                                                          OutlineInputBorder(
+                                                            borderRadius:
+                                                                BorderRadius.circular(
+                                                                  12,
+                                                                ),
+                                                            borderSide:
+                                                                const BorderSide(
+                                                                  color: Color(
+                                                                    0xFFE4E9F1,
+                                                                  ),
+                                                                ),
+                                                          ),
                                                     ),
-                                                    icon: const Icon(Icons.keyboard_arrow_down_rounded),
+                                                    icon: const Icon(
+                                                      Icons
+                                                          .keyboard_arrow_down_rounded,
+                                                    ),
                                                   ),
                                                 ],
                                               ),
@@ -2320,28 +2715,40 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                                             SizedBox(
                                               width: fieldWidth,
                                               child: Column(
-                                                crossAxisAlignment: CrossAxisAlignment.start,
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment.start,
                                                 children: [
                                                   Text(
                                                     'End Unit?',
                                                     style: TextStyle(
                                                       fontSize: 14,
-                                                      fontWeight: FontWeight.w700,
+                                                      fontWeight:
+                                                          FontWeight.w700,
                                                       color: Colors.grey[800],
                                                     ),
                                                   ),
                                                   const SizedBox(height: 8),
-                                                  DropdownButtonFormField<String>(
-                                                    value: _selectedEndUnit,
+                                                  DropdownButtonFormField<
+                                                    String
+                                                  >(
+                                                    initialValue:
+                                                        _selectedEndUnit,
                                                     items: _msccEndUnitOptions
                                                         .map(
-                                                          (value) => DropdownMenuItem<String>(
-                                                            value: value,
-                                                            child: Text(
-                                                              value,
-                                                              style: const TextStyle(fontSize: 14),
-                                                            ),
-                                                          ),
+                                                          (value) =>
+                                                              DropdownMenuItem<
+                                                                String
+                                                              >(
+                                                                value: value,
+                                                                child: Text(
+                                                                  value,
+                                                                  style:
+                                                                      const TextStyle(
+                                                                        fontSize:
+                                                                            14,
+                                                                      ),
+                                                                ),
+                                                              ),
                                                         )
                                                         .toList(),
                                                     onChanged: (val) {
@@ -2351,22 +2758,45 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                                                       });
                                                     },
                                                     decoration: InputDecoration(
-                                                      contentPadding: const EdgeInsets.symmetric(
-                                                        horizontal: 14,
-                                                        vertical: 12,
-                                                      ),
+                                                      contentPadding:
+                                                          const EdgeInsets.symmetric(
+                                                            horizontal: 14,
+                                                            vertical: 12,
+                                                          ),
                                                       filled: true,
-                                                      fillColor: const Color(0xFFF4F7FB),
+                                                      fillColor: const Color(
+                                                        0xFFF4F7FB,
+                                                      ),
                                                       border: OutlineInputBorder(
-                                                        borderRadius: BorderRadius.circular(12),
-                                                        borderSide: const BorderSide(color: Color(0xFFE4E9F1)),
+                                                        borderRadius:
+                                                            BorderRadius.circular(
+                                                              12,
+                                                            ),
+                                                        borderSide:
+                                                            const BorderSide(
+                                                              color: Color(
+                                                                0xFFE4E9F1,
+                                                              ),
+                                                            ),
                                                       ),
-                                                      enabledBorder: OutlineInputBorder(
-                                                        borderRadius: BorderRadius.circular(12),
-                                                        borderSide: const BorderSide(color: Color(0xFFE4E9F1)),
-                                                      ),
+                                                      enabledBorder:
+                                                          OutlineInputBorder(
+                                                            borderRadius:
+                                                                BorderRadius.circular(
+                                                                  12,
+                                                                ),
+                                                            borderSide:
+                                                                const BorderSide(
+                                                                  color: Color(
+                                                                    0xFFE4E9F1,
+                                                                  ),
+                                                                ),
+                                                          ),
                                                     ),
-                                                    icon: const Icon(Icons.keyboard_arrow_down_rounded),
+                                                    icon: const Icon(
+                                                      Icons
+                                                          .keyboard_arrow_down_rounded,
+                                                    ),
                                                   ),
                                                 ],
                                               ),
@@ -2374,28 +2804,40 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                                             SizedBox(
                                               width: fieldWidth,
                                               child: Column(
-                                                crossAxisAlignment: CrossAxisAlignment.start,
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment.start,
                                                 children: [
                                                   Text(
-                                                    'Type of furnish',
+                                                    'Type of delivery',
                                                     style: TextStyle(
                                                       fontSize: 14,
-                                                      fontWeight: FontWeight.w700,
+                                                      fontWeight:
+                                                          FontWeight.w700,
                                                       color: Colors.grey[800],
                                                     ),
                                                   ),
                                                   const SizedBox(height: 8),
-                                                  DropdownButtonFormField<String>(
-                                                    value: _selectedFurnish,
+                                                  DropdownButtonFormField<
+                                                    String
+                                                  >(
+                                                    initialValue:
+                                                        _selectedFurnish,
                                                     items: _msccFurnishOptions
                                                         .map(
-                                                          (value) => DropdownMenuItem<String>(
-                                                            value: value,
-                                                            child: Text(
-                                                              value,
-                                                              style: const TextStyle(fontSize: 14),
-                                                            ),
-                                                          ),
+                                                          (value) =>
+                                                              DropdownMenuItem<
+                                                                String
+                                                              >(
+                                                                value: value,
+                                                                child: Text(
+                                                                  value,
+                                                                  style:
+                                                                      const TextStyle(
+                                                                        fontSize:
+                                                                            14,
+                                                                      ),
+                                                                ),
+                                                              ),
                                                         )
                                                         .toList(),
                                                     onChanged: (val) {
@@ -2405,22 +2847,45 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                                                       });
                                                     },
                                                     decoration: InputDecoration(
-                                                      contentPadding: const EdgeInsets.symmetric(
-                                                        horizontal: 14,
-                                                        vertical: 12,
-                                                      ),
+                                                      contentPadding:
+                                                          const EdgeInsets.symmetric(
+                                                            horizontal: 14,
+                                                            vertical: 12,
+                                                          ),
                                                       filled: true,
-                                                      fillColor: const Color(0xFFF4F7FB),
+                                                      fillColor: const Color(
+                                                        0xFFF4F7FB,
+                                                      ),
                                                       border: OutlineInputBorder(
-                                                        borderRadius: BorderRadius.circular(12),
-                                                        borderSide: const BorderSide(color: Color(0xFFE4E9F1)),
+                                                        borderRadius:
+                                                            BorderRadius.circular(
+                                                              12,
+                                                            ),
+                                                        borderSide:
+                                                            const BorderSide(
+                                                              color: Color(
+                                                                0xFFE4E9F1,
+                                                              ),
+                                                            ),
                                                       ),
-                                                      enabledBorder: OutlineInputBorder(
-                                                        borderRadius: BorderRadius.circular(12),
-                                                        borderSide: const BorderSide(color: Color(0xFFE4E9F1)),
-                                                      ),
+                                                      enabledBorder:
+                                                          OutlineInputBorder(
+                                                            borderRadius:
+                                                                BorderRadius.circular(
+                                                                  12,
+                                                                ),
+                                                            borderSide:
+                                                                const BorderSide(
+                                                                  color: Color(
+                                                                    0xFFE4E9F1,
+                                                                  ),
+                                                                ),
+                                                          ),
                                                     ),
-                                                    icon: const Icon(Icons.keyboard_arrow_down_rounded),
+                                                    icon: const Icon(
+                                                      Icons
+                                                          .keyboard_arrow_down_rounded,
+                                                    ),
                                                   ),
                                                 ],
                                               ),
@@ -2432,7 +2897,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                                     const SizedBox(height: 18),
                                   ],
                                   Row(
-                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceBetween,
                                     children: [
                                       Text(
                                         'Downpayment',
@@ -2455,13 +2921,16 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                                   SliderTheme(
                                     data: SliderTheme.of(context).copyWith(
                                       activeTrackColor: colorScheme.primary,
-                                      inactiveTrackColor: const Color(0xFFE0E6EF),
+                                      inactiveTrackColor: const Color(
+                                        0xFFE0E6EF,
+                                      ),
                                       thumbColor: colorScheme.primary,
                                       overlayColor: const Color(0x1F0F88D5),
                                     ),
                                     child: Slider(
                                       min: 0,
-                                      max: (_downpaymentOptions.length - 1).toDouble(),
+                                      max: (_downpaymentOptions.length - 1)
+                                          .toDouble(),
                                       divisions: _downpaymentOptions.length - 1,
                                       value: _downpaymentIndex,
                                       onChanged: (val) {
@@ -2474,7 +2943,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                                   ),
                                   const SizedBox(height: 18),
                                   Row(
-                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceBetween,
                                     children: [
                                       const Text(
                                         'Payment years',
@@ -2497,7 +2967,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                                   SliderTheme(
                                     data: SliderTheme.of(context).copyWith(
                                       activeTrackColor: colorScheme.primary,
-                                      inactiveTrackColor: const Color(0xFFE0E6EF),
+                                      inactiveTrackColor: const Color(
+                                        0xFFE0E6EF,
+                                      ),
                                       thumbColor: colorScheme.primary,
                                       overlayColor: const Color(0x1F0F88D5),
                                     ),
@@ -2510,7 +2982,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                                         maxPaymentYears,
                                       ),
                                       onChanged: _isPaymentYearsEnabled
-                                          ? (val) => setState(() => _paymentYears = val)
+                                          ? (val) => setState(
+                                              () => _paymentYears = val,
+                                            )
                                           : null,
                                     ),
                                   ),
@@ -2519,17 +2993,30 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                                   SizedBox(
                                     width: double.infinity,
                                     child: ElevatedButton(
-                                      onPressed: _isComputing ? null : _startComputation,
+                                      onPressed: _isComputing
+                                          ? null
+                                          : _startComputation,
                                       style: ElevatedButton.styleFrom(
-                                        backgroundColor: const Color(0xFF0F88D5),
+                                        backgroundColor: const Color(
+                                          0xFF0F88D5,
+                                        ),
                                         foregroundColor: Colors.white,
-                                        padding: const EdgeInsets.symmetric(vertical: 14),
-                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                                        padding: const EdgeInsets.symmetric(
+                                          vertical: 14,
+                                        ),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            14,
+                                          ),
+                                        ),
                                         elevation: 0,
                                       ),
                                       child: const Text(
                                         'Start a computation',
-                                        style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.w700,
+                                          fontSize: 16,
+                                        ),
                                       ),
                                     ),
                                   ),
@@ -2537,15 +3024,24 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                                   const SizedBox(height: 20),
                                   Container(
                                     width: double.infinity,
-                                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 16,
+                                      vertical: 24,
+                                    ),
                                     decoration: BoxDecoration(
                                       color: const Color(0xFFF4F7FB),
                                       borderRadius: BorderRadius.circular(16),
-                                      border: Border.all(color: const Color(0xFFE4E9F1)),
+                                      border: Border.all(
+                                        color: const Color(0xFFE4E9F1),
+                                      ),
                                     ),
                                     child: Column(
                                       children: const [
-                                        Icon(Icons.account_balance, color: Color(0xFF2BB673), size: 32),
+                                        Icon(
+                                          Icons.account_balance,
+                                          color: Color(0xFF2BB673),
+                                          size: 32,
+                                        ),
                                         SizedBox(height: 12),
                                         Text(
                                           'Bank financing calculator coming soon.',
@@ -2589,7 +3085,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     return Stack(
       fit: StackFit.expand,
       children: [
-        const Positioned.fill(child: CustomPaint(painter: _HomeBackgroundPainter())),
+        const Positioned.fill(
+          child: CustomPaint(painter: _HomeBackgroundPainter()),
+        ),
         Positioned.fill(
           child: SingleChildScrollView(
             padding: const EdgeInsets.only(bottom: 24),
@@ -2608,14 +3106,18 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                             Transform.translate(
                               offset: const Offset(0, -10),
                               child: Padding(
-                                padding: const EdgeInsets.symmetric(horizontal: 16),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                ),
                                 child: _cardEntrance(_buildProjectCard()),
                               ),
                             ),
                             Transform.translate(
                               offset: const Offset(0, 15),
                               child: Padding(
-                                padding: const EdgeInsets.symmetric(horizontal: 16),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                ),
                                 child: _cardEntrance(_buildStatusCard()),
                               ),
                             ),
@@ -2635,37 +3137,45 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                             ),
                             const SizedBox(height: 8),
                             Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 16),
-                              child: _cardEntrance(
-                              LayoutBuilder(
-                                builder: (context, constraints) {
-                                  final firstCard = _exploreActionCard(
-                                    title: 'Virtual Tour at ${_projects[_selectedProject]}',
-                                    icon: Icons.vrpano_outlined,
-                                    onTap: () => setState(() => _currentIndex = 1),
-                                  );
-                                  final secondCard = _exploreActionCard(
-                                    title: 'Price Computation',
-                                    icon: Icons.account_balance_wallet_outlined,
-                                    onTap: () => setState(() => _currentIndex = 3),
-                                  );
-
-                                  return IntrinsicHeight(
-                                    child: Row(
-                                      children: [
-                                        Expanded(child: firstCard),
-                                        const SizedBox(width: 12),
-                                        Expanded(child: secondCard),
-                                      ],
-                                    ),
-                                  );
-                                },
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
                               ),
+                              child: _cardEntrance(
+                                LayoutBuilder(
+                                  builder: (context, constraints) {
+                                    final firstCard = _exploreActionCard(
+                                      title:
+                                          'Virtual Tour at ${_projects[_selectedProject]}',
+                                      icon: Icons.vrpano_outlined,
+                                      onTap: () =>
+                                          setState(() => _currentIndex = 1),
+                                    );
+                                    final secondCard = _exploreActionCard(
+                                      title: 'Price Computation',
+                                      icon:
+                                          Icons.account_balance_wallet_outlined,
+                                      onTap: () =>
+                                          setState(() => _currentIndex = 3),
+                                    );
+
+                                    return IntrinsicHeight(
+                                      child: Row(
+                                        children: [
+                                          Expanded(child: firstCard),
+                                          const SizedBox(width: 12),
+                                          Expanded(child: secondCard),
+                                        ],
+                                      ),
+                                    );
+                                  },
+                                ),
                               ),
                             ),
                             const SizedBox(height: 16),
                             Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 16),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                              ),
                               child: _cardEntrance(_buildMapSection()),
                             ),
                             const SizedBox(height: 16),
@@ -2687,14 +3197,18 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     final projectCode = _projects[_selectedProject];
     final imagePath = _projectImages[projectCode];
     final screenWidth = MediaQuery.of(context).size.width;
-    final heroTitleSize = screenWidth < 380 ? 22.0 : (screenWidth < 420 ? 24.0 : 28.0);
+    final heroTitleSize = screenWidth < 380
+        ? 22.0
+        : (screenWidth < 420 ? 24.0 : 28.0);
     final heroLocationSize = screenWidth < 380 ? 14.0 : 16.0;
     return FadeTransition(
       opacity: _heroBgOpacity,
       child: Container(
         width: double.infinity,
         decoration: BoxDecoration(
-          borderRadius: const BorderRadius.vertical(bottom: Radius.circular(30)),
+          borderRadius: const BorderRadius.vertical(
+            bottom: Radius.circular(30),
+          ),
           gradient: const LinearGradient(
             colors: [Color(0xFF0F88D5), Color(0xFF035F9B)],
             begin: Alignment.topLeft,
@@ -2709,7 +3223,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           ],
         ),
         child: ClipRRect(
-          borderRadius: const BorderRadius.vertical(bottom: Radius.circular(30)),
+          borderRadius: const BorderRadius.vertical(
+            bottom: Radius.circular(30),
+          ),
           child: Stack(
             children: [
               Positioned.fill(
@@ -2717,7 +3233,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                   duration: const Duration(milliseconds: 900),
                   switchInCurve: Curves.easeInOut,
                   switchOutCurve: Curves.easeInOut,
-                  transitionBuilder: (child, animation) => FadeTransition(opacity: animation, child: child),
+                  transitionBuilder: (child, animation) =>
+                      FadeTransition(opacity: animation, child: child),
                   child: imagePath != null
                       ? SizedBox.expand(
                           key: ValueKey(imagePath),
@@ -2762,7 +3279,10 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                                 color: Colors.white.withOpacity(0.15),
                                 borderRadius: BorderRadius.circular(12),
                               ),
-                              child: const Icon(Icons.apartment_rounded, color: Colors.white),
+                              child: const Icon(
+                                Icons.apartment_rounded,
+                                color: Colors.white,
+                              ),
                             ),
                             const SizedBox(width: 6),
                             const Text(
@@ -2778,26 +3298,33 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                         ),
                         const SizedBox(height: 10),
                         const SizedBox(height: 6),
-                          Text(
-                            _projectTitles[_selectedProject],
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: heroTitleSize,
-                              fontWeight: FontWeight.w800,
-                              height: 1.15,
-                            ),
+                        Text(
+                          _projectTitles[_selectedProject],
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: heroTitleSize,
+                            fontWeight: FontWeight.w800,
+                            height: 1.15,
                           ),
+                        ),
                         const SizedBox(height: 12),
                         Row(
                           children: [
-                              const Icon(Icons.location_on_outlined, color: Colors.white, size: 18),
-                              const SizedBox(width: 6),
-                              Text(
-                                _projectLocations[_selectedProject],
-                                style: TextStyle(color: Colors.white, fontSize: heroLocationSize),
+                            const Icon(
+                              Icons.location_on_outlined,
+                              color: Colors.white,
+                              size: 18,
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              _projectLocations[_selectedProject],
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: heroLocationSize,
                               ),
-                            ],
-                          ),
+                            ),
+                          ],
+                        ),
                       ],
                     ),
                   ),
@@ -2813,10 +3340,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   Widget _cardEntrance(Widget child) {
     return FadeTransition(
       opacity: _cardsOpacity,
-      child: ScaleTransition(
-        scale: _cardsScale,
-        child: child,
-      ),
+      child: ScaleTransition(scale: _cardsScale, child: child),
     );
   }
 
@@ -2844,42 +3368,58 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
             style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
           ),
           const SizedBox(height: 12),
-          Center(
-            child: Wrap(
-              spacing: 10,
-              runSpacing: 10,
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
               children: List.generate(_projects.length, (index) {
                 final isSelected = index == _selectedProject;
-                return GestureDetector(
-                  onTap: () => _onProjectSelected(index),
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 160),
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                    decoration: BoxDecoration(
-                      color: isSelected ? const Color(0xFF0F88D5) : const Color(0xFFF1F4F8),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: isSelected ? const Color(0xFF0F88D5) : const Color(0xFFE3E7EC),
-                        width: 1.2,
+                return Padding(
+                  padding: EdgeInsets.only(
+                    right: index == _projects.length - 1 ? 0 : 10,
+                  ),
+                  child: GestureDetector(
+                    onTap: () => _onProjectSelected(index),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 160),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 12,
                       ),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.apartment_rounded,
-                          size: 18,
-                          color: isSelected ? Colors.white : const Color(0xFF6C7A89),
+                      decoration: BoxDecoration(
+                        color: isSelected
+                            ? const Color(0xFF0F88D5)
+                            : const Color(0xFFF1F4F8),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: isSelected
+                              ? const Color(0xFF0F88D5)
+                              : const Color(0xFFE3E7EC),
+                          width: 1.2,
                         ),
-                        const SizedBox(width: 8),
-                        Text(
-                          _projects[index],
-                          style: TextStyle(
-                            fontWeight: FontWeight.w700,
-                            color: isSelected ? Colors.white : const Color(0xFF3A4A5B),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.apartment_rounded,
+                            size: 18,
+                            color: isSelected
+                                ? Colors.white
+                                : const Color(0xFF6C7A89),
                           ),
-                        ),
-                      ],
+                          const SizedBox(width: 8),
+                          Text(
+                            _projects[index],
+                            style: TextStyle(
+                              fontWeight: FontWeight.w700,
+                              color: isSelected
+                                  ? Colors.white
+                                  : const Color(0xFF3A4A5B),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 );
@@ -2987,7 +3527,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
               backgroundColor: const Color(0xFF0F88D5),
               foregroundColor: Colors.white,
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
               elevation: 0,
             ),
             icon: const Icon(Icons.map_outlined, size: 18),
@@ -3010,10 +3552,12 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     final mapQuery = isMvOrMscc
         ? '$mvlcMsccCoords (Mountain View Leisure Community)'
         : isErhd
-            ? '$erhdCoords (Eastwest Resorts Hub and Development)'
-            : locationLabel;
-    final mapEmbedUrl = 'https://www.google.com/maps?q=${Uri.encodeComponent(mapQuery)}&hl=en&t=k&z=19&output=embed';
-    final mapOpenUrl = 'https://www.google.com/maps/search/?api=1&query=${Uri.encodeComponent(mapQuery)}&hl=en';
+        ? '$erhdCoords (Eastwest Resorts Hub and Development)'
+        : locationLabel;
+    final mapEmbedUrl =
+        'https://www.google.com/maps?q=${Uri.encodeComponent(mapQuery)}&hl=en&t=k&z=19&output=embed';
+    final mapOpenUrl =
+        'https://www.google.com/maps/search/?api=1&query=${Uri.encodeComponent(mapQuery)}&hl=en';
     final mapWebView = LayoutBuilder(
       builder: (context, constraints) {
         final mapHeight = _salesMapMediaHeight(constraints.maxWidth);
@@ -3043,9 +3587,10 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                         : Builder(
                             builder: (_) {
                               final controller = WebViewController();
-                              controller.setJavaScriptMode(JavaScriptMode.unrestricted);
-                              controller.loadHtmlString(
-                                '''
+                              controller.setJavaScriptMode(
+                                JavaScriptMode.unrestricted,
+                              );
+                              controller.loadHtmlString('''
                             <html>
                               <head>
                                 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
@@ -3063,8 +3608,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                                 </iframe>
                               </body>
                             </html>
-                            ''',
-                              );
+                            ''');
                               return WebViewWidget(controller: controller);
                             },
                           ),
@@ -3077,11 +3621,16 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                     color: Colors.white70,
                     shape: const CircleBorder(),
                     child: IconButton(
-                      icon: const Icon(Icons.fullscreen, color: Color(0xFF2BB673)),
+                      icon: const Icon(
+                        Icons.fullscreen,
+                        color: Color(0xFF2BB673),
+                      ),
                       onPressed: () => _openMapFullScreen(
                         mapEmbedUrl,
                         mapOpenUrl,
-                        isMvOrMscc ? 'Mountain View Leisure Community' : locationLabel,
+                        isMvOrMscc
+                            ? 'Mountain View Leisure Community'
+                            : locationLabel,
                       ),
                     ),
                   ),
@@ -3131,7 +3680,11 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     );
   }
 
-  Future<void> _openMapFullScreen(String mapEmbedUrl, String mapOpenUrl, String title) async {
+  Future<void> _openMapFullScreen(
+    String mapEmbedUrl,
+    String mapOpenUrl,
+    String title,
+  ) async {
     if (kIsWeb) {
       final uri = Uri.parse(mapOpenUrl);
       final launched = await launchUrl(
@@ -3141,7 +3694,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       );
       if (!launched && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Unable to open Google Maps in a new tab.')),
+          const SnackBar(
+            content: Text('Unable to open Google Maps in a new tab.'),
+          ),
         );
       }
       return;
@@ -3159,8 +3714,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
             builder: (_) {
               final controller = WebViewController();
               controller.setJavaScriptMode(JavaScriptMode.unrestricted);
-              controller.loadHtmlString(
-                '''
+              controller.loadHtmlString('''
                 <html>
                   <head>
                     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
@@ -3178,8 +3732,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                     </iframe>
                   </body>
                 </html>
-                ''',
-              );
+                ''');
               return WebViewWidget(controller: controller);
             },
           ),
@@ -3191,7 +3744,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   Widget _buildSalesMapTab() {
     return Stack(
       children: [
-        const Positioned.fill(child: CustomPaint(painter: _HomeBackgroundPainter())),
+        const Positioned.fill(
+          child: CustomPaint(painter: _HomeBackgroundPainter()),
+        ),
         _buildSalesMapContent(),
       ],
     );
@@ -3202,7 +3757,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     final isMvProject = project == 'MVLC';
     final isErhdProject = project == 'ERHD';
     final isMsccProject = project == 'MSCC';
-    final hasMvSalesMaps = _salesMapImages.isNotEmpty || _salesMapCommercialImages.isNotEmpty;
+    final hasMvSalesMaps =
+        _salesMapImages.isNotEmpty || _salesMapCommercialImages.isNotEmpty;
     final hasMsccSalesMaps = _msccSalesMapItems.isNotEmpty;
 
     if (!isMvProject && !isErhdProject && !isMsccProject) {
@@ -3233,7 +3789,11 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                 child: Text(
                   _salesMapError!,
                   textAlign: TextAlign.center,
-                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.redAccent),
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.redAccent,
+                  ),
                 ),
               ),
               const SizedBox(height: 12),
@@ -3242,11 +3802,19 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF0F88D5),
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 18,
+                    vertical: 10,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                   elevation: 0,
                 ),
-                child: const Text('Retry', style: TextStyle(fontWeight: FontWeight.w700)),
+                child: const Text(
+                  'Retry',
+                  style: TextStyle(fontWeight: FontWeight.w700),
+                ),
               ),
             ],
           ),
@@ -3257,34 +3825,40 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         ..sort((a, b) => a.key.compareTo(b.key));
 
       final maps = <Widget>[
-        for (var i = 0; i < 3; i++) _buildSalesMapCard('Phase ${i + 1}', _salesMapImages[i + 1]),
+        for (var i = 0; i < 3; i++)
+          _buildSalesMapCard('Phase ${i + 1}', _salesMapImages[i + 1]),
         for (final entry in commercialEntries)
           _buildSalesMapCard('Phase ${entry.key} - commercial', entry.value),
       ];
 
-        return LayoutBuilder(
-          builder: (context, constraints) {
-            final width = constraints.maxWidth;
-            final horizontalPadding = _pageHorizontalPadding(width);
-            final maxWidth = _contentMaxWidth(width);
-            final wrappedMaps = maps
-                .map(
-                  (card) => Align(
-                    alignment: Alignment.topCenter,
-                    child: ConstrainedBox(
-                      constraints: BoxConstraints(maxWidth: maxWidth),
-                      child: card,
-                    ),
+      return LayoutBuilder(
+        builder: (context, constraints) {
+          final width = constraints.maxWidth;
+          final horizontalPadding = _pageHorizontalPadding(width);
+          final maxWidth = _contentMaxWidth(width);
+          final wrappedMaps = maps
+              .map(
+                (card) => Align(
+                  alignment: Alignment.topCenter,
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(maxWidth: maxWidth),
+                    child: card,
                   ),
-                )
-                .toList();
-            return ListView(
-              padding: EdgeInsets.fromLTRB(horizontalPadding, 20, horizontalPadding, 24),
-              children: wrappedMaps,
-            );
-          },
-        );
-      }
+                ),
+              )
+              .toList();
+          return ListView(
+            padding: EdgeInsets.fromLTRB(
+              horizontalPadding,
+              20,
+              horizontalPadding,
+              24,
+            ),
+            children: wrappedMaps,
+          );
+        },
+      );
+    }
 
     if (isMsccProject) {
       if (!hasMsccSalesMaps && !_isLoadingSalesMap && _salesMapError == null) {
@@ -3305,7 +3879,11 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                 child: Text(
                   _salesMapError!,
                   textAlign: TextAlign.center,
-                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.redAccent),
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.redAccent,
+                  ),
                 ),
               ),
               const SizedBox(height: 12),
@@ -3314,11 +3892,19 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF0F88D5),
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 18,
+                    vertical: 10,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                   elevation: 0,
                 ),
-                child: const Text('Retry', style: TextStyle(fontWeight: FontWeight.w700)),
+                child: const Text(
+                  'Retry',
+                  style: TextStyle(fontWeight: FontWeight.w700),
+                ),
               ),
             ],
           ),
@@ -3328,35 +3914,42 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       final galleryImages = _msccSalesMapItems.map((e) => e.url).toList();
       final galleryCaptions = _msccSalesMapItems.map((e) => e.title).toList();
 
-        return LayoutBuilder(
-          builder: (context, constraints) {
-            final width = constraints.maxWidth;
-            final horizontalPadding = _pageHorizontalPadding(width);
-            final maxWidth = min(_contentMaxWidth(width), 720.0);
-            return ListView(
-              padding: EdgeInsets.fromLTRB(horizontalPadding, 20, horizontalPadding, 24),
-              children: [
-                for (final item in _msccSalesMapItems)
-                  Align(
-                    alignment: Alignment.topCenter,
-                    child: ConstrainedBox(
-                      constraints: BoxConstraints(maxWidth: maxWidth),
-                      child: _buildSalesMapCard(
-                        item.title,
-                        item.url,
-                        galleryImages: galleryImages,
-                        galleryCaptions: galleryCaptions,
-                      ),
+      return LayoutBuilder(
+        builder: (context, constraints) {
+          final width = constraints.maxWidth;
+          final horizontalPadding = _pageHorizontalPadding(width);
+          final maxWidth = min(_contentMaxWidth(width), 720.0);
+          return ListView(
+            padding: EdgeInsets.fromLTRB(
+              horizontalPadding,
+              20,
+              horizontalPadding,
+              24,
+            ),
+            children: [
+              for (final item in _msccSalesMapItems)
+                Align(
+                  alignment: Alignment.topCenter,
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(maxWidth: maxWidth),
+                    child: _buildSalesMapCard(
+                      item.title,
+                      item.url,
+                      galleryImages: galleryImages,
+                      galleryCaptions: galleryCaptions,
                     ),
                   ),
-              ],
-            );
-          },
-        );
-      }
+                ),
+            ],
+          );
+        },
+      );
+    }
 
     if (isErhdProject) {
-      if (_erhdSalesMapImage == null && !_isLoadingSalesMap && _salesMapError == null) {
+      if (_erhdSalesMapImage == null &&
+          !_isLoadingSalesMap &&
+          _salesMapError == null) {
         _loadSalesMaps();
       }
 
@@ -3374,7 +3967,11 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                 child: Text(
                   _salesMapError!,
                   textAlign: TextAlign.center,
-                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.redAccent),
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.redAccent,
+                  ),
                 ),
               ),
               const SizedBox(height: 12),
@@ -3383,39 +3980,56 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF0F88D5),
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 18,
+                    vertical: 10,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                   elevation: 0,
                 ),
-                child: const Text('Retry', style: TextStyle(fontWeight: FontWeight.w700)),
+                child: const Text(
+                  'Retry',
+                  style: TextStyle(fontWeight: FontWeight.w700),
+                ),
               ),
             ],
           ),
         );
       }
 
-        return LayoutBuilder(
-          builder: (context, constraints) {
-            final width = constraints.maxWidth;
-            final horizontalPadding = _pageHorizontalPadding(width);
-            final maxWidth = min(_contentMaxWidth(width), 720.0);
-            return Center(
-              child: SingleChildScrollView(
-                padding: EdgeInsets.fromLTRB(horizontalPadding, 20, horizontalPadding, 24),
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(maxWidth: maxWidth),
-                  child: _buildSalesMapCard(
-                    'ERHD Sales Map',
-                    _erhdSalesMapImage,
-                    galleryImages: _erhdSalesMapImage != null ? [_erhdSalesMapImage!] : null,
-                    galleryCaptions: _erhdSalesMapImage != null ? const ['Sales Map'] : null,
-                  ),
+      return LayoutBuilder(
+        builder: (context, constraints) {
+          final width = constraints.maxWidth;
+          final horizontalPadding = _pageHorizontalPadding(width);
+          final maxWidth = min(_contentMaxWidth(width), 720.0);
+          return Center(
+            child: SingleChildScrollView(
+              padding: EdgeInsets.fromLTRB(
+                horizontalPadding,
+                20,
+                horizontalPadding,
+                24,
+              ),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(maxWidth: maxWidth),
+                child: _buildSalesMapCard(
+                  'ERHD Sales Map',
+                  _erhdSalesMapImage,
+                  galleryImages: _erhdSalesMapImage != null
+                      ? [_erhdSalesMapImage!]
+                      : null,
+                  galleryCaptions: _erhdSalesMapImage != null
+                      ? const ['Sales Map']
+                      : null,
                 ),
               ),
-            );
-          },
-        );
-      }
+            ),
+          );
+        },
+      );
+    }
 
     return const SizedBox.shrink();
   }
@@ -3427,16 +4041,22 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     }
 
     final gallery = <_SalesMapGalleryItem>[];
-    final residentialEntries = _salesMapImages.entries.toList()..sort((a, b) => a.key.compareTo(b.key));
+    final residentialEntries = _salesMapImages.entries.toList()
+      ..sort((a, b) => a.key.compareTo(b.key));
     gallery.addAll(
       residentialEntries.map(
-        (entry) => _SalesMapGalleryItem(title: 'Phase ${entry.key}', url: entry.value),
+        (entry) =>
+            _SalesMapGalleryItem(title: 'Phase ${entry.key}', url: entry.value),
       ),
     );
-    final commercialEntries = _salesMapCommercialImages.entries.toList()..sort((a, b) => a.key.compareTo(b.key));
+    final commercialEntries = _salesMapCommercialImages.entries.toList()
+      ..sort((a, b) => a.key.compareTo(b.key));
     gallery.addAll(
       commercialEntries.map(
-        (entry) => _SalesMapGalleryItem(title: 'Phase ${entry.key} - commercial', url: entry.value),
+        (entry) => _SalesMapGalleryItem(
+          title: 'Phase ${entry.key} - commercial',
+          url: entry.value,
+        ),
       ),
     );
     return gallery;
@@ -3457,7 +4077,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
                   color: const Color(0xFFF4F7FB),
-                  borderRadius: const BorderRadius.vertical(bottom: Radius.circular(16)),
+                  borderRadius: const BorderRadius.vertical(
+                    bottom: Radius.circular(16),
+                  ),
                 ),
                 child: const Text(
                   'No sales map available.',
@@ -3465,7 +4087,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                 ),
               )
             : ClipRRect(
-                borderRadius: const BorderRadius.vertical(bottom: Radius.circular(16)),
+                borderRadius: const BorderRadius.vertical(
+                  bottom: Radius.circular(16),
+                ),
                 child: Stack(
                   children: [
                     Positioned.fill(
@@ -3477,7 +4101,10 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                         fit: BoxFit.cover,
                         error: const Text(
                           'Failed to load map image.',
-                          style: TextStyle(fontSize: 13, color: Color(0xFF6C7A89)),
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: Color(0xFF6C7A89),
+                          ),
                         ),
                       ),
                     ),
@@ -3488,17 +4115,23 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                         color: Colors.white70,
                         shape: const CircleBorder(),
                         child: IconButton(
-                          icon: const Icon(Icons.fullscreen, color: Color(0xFF2BB673)),
+                          icon: const Icon(
+                            Icons.fullscreen,
+                            color: Color(0xFF2BB673),
+                          ),
                           onPressed: () {
                             List<String> urls;
                             List<String>? captions;
-                            if (galleryImages != null && galleryImages.isNotEmpty) {
+                            if (galleryImages != null &&
+                                galleryImages.isNotEmpty) {
                               urls = List<String>.from(galleryImages);
                               captions = galleryCaptions;
                             } else {
                               final galleryItems = _salesMapGalleryItems();
                               urls = galleryItems.map((e) => e.url).toList();
-                              captions = galleryItems.map((e) => e.title).toList();
+                              captions = galleryItems
+                                  .map((e) => e.title)
+                                  .toList();
                             }
                             if (urls.isEmpty) return;
                             final startIndex = urls.indexOf(imageUrl);
@@ -3546,7 +4179,12 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                     }
                     if (urls.isEmpty) return;
                     final startIndex = urls.indexOf(imageUrl);
-                    _openImageGalleryFullScreen(context, urls, startIndex < 0 ? 0 : startIndex, captions: captions);
+                    _openImageGalleryFullScreen(
+                      context,
+                      urls,
+                      startIndex < 0 ? 0 : startIndex,
+                      captions: captions,
+                    );
                   }
                 : null,
             child: Column(
@@ -3563,7 +4201,11 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                     ),
                   ),
                 ),
-                SizedBox(height: mediaHeight, width: double.infinity, child: content),
+                SizedBox(
+                  height: mediaHeight,
+                  width: double.infinity,
+                  child: content,
+                ),
               ],
             ),
           ),
@@ -3578,7 +4220,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     required String externalUrl,
     required VoidCallback onPlay,
   }) {
-    final thumbnailUrl = 'https://img.youtube.com/vi/$videoId/maxresdefault.jpg';
+    final thumbnailUrl =
+        'https://img.youtube.com/vi/$videoId/maxresdefault.jpg';
 
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
@@ -3608,105 +4251,123 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
               ),
             ),
           ),
-            LayoutBuilder(
-              builder: (context, constraints) {
-                final mediaHeight = _salesMapMediaHeight(constraints.maxWidth);
-                return SizedBox(
-                  height: mediaHeight,
-                  width: double.infinity,
-                  child: ClipRRect(
-                    borderRadius: const BorderRadius.vertical(bottom: Radius.circular(16)),
-                    child: Stack(
-                      children: [
-                        Positioned.fill(
-                          child: Image.network(
-                            thumbnailUrl,
-                            fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) => Container(
-                              color: Colors.black,
-                              alignment: Alignment.center,
-                              child: const Text(
-                                'Video thumbnail unavailable',
-                                style: TextStyle(color: Colors.white70, fontSize: 13),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final mediaHeight = _salesMapMediaHeight(constraints.maxWidth);
+              return SizedBox(
+                height: mediaHeight,
+                width: double.infinity,
+                child: ClipRRect(
+                  borderRadius: const BorderRadius.vertical(
+                    bottom: Radius.circular(16),
+                  ),
+                  child: Stack(
+                    children: [
+                      Positioned.fill(
+                        child: _cachedNetworkImage(
+                          context,
+                          thumbnailUrl,
+                          width: constraints.maxWidth,
+                          height: mediaHeight,
+                          fit: BoxFit.cover,
+                          error: Container(
+                            color: Colors.black,
+                            alignment: Alignment.center,
+                            child: const Text(
+                              'Video thumbnail unavailable',
+                              style: TextStyle(
+                                color: Colors.white70,
+                                fontSize: 13,
                               ),
                             ),
                           ),
                         ),
-                        Positioned.fill(
+                      ),
+                      Positioned.fill(
+                        child: Container(
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: [
+                                Colors.black.withOpacity(0.32),
+                                Colors.black.withOpacity(0.12),
+                              ],
+                              begin: Alignment.bottomCenter,
+                              end: Alignment.topCenter,
+                            ),
+                          ),
+                        ),
+                      ),
+                      Center(
+                        child: GestureDetector(
+                          onTap: onPlay,
                           child: Container(
+                            padding: const EdgeInsets.all(14),
                             decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                colors: [
-                                  Colors.black.withOpacity(0.32),
-                                  Colors.black.withOpacity(0.12),
-                                ],
-                                begin: Alignment.bottomCenter,
-                                end: Alignment.topCenter,
-                              ),
+                              color: Colors.white.withOpacity(0.9),
+                              shape: BoxShape.circle,
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.16),
+                                  blurRadius: 10,
+                                  offset: const Offset(0, 4),
+                                ),
+                              ],
+                            ),
+                            child: const Icon(
+                              Icons.play_arrow_rounded,
+                              color: Colors.black87,
+                              size: 30,
                             ),
                           ),
                         ),
-                        Center(
-                          child: GestureDetector(
-                            onTap: onPlay,
-                            child: Container(
-                              padding: const EdgeInsets.all(14),
-                              decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(0.9),
-                                shape: BoxShape.circle,
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black.withOpacity(0.16),
-                                    blurRadius: 10,
-                                    offset: const Offset(0, 4),
+                      ),
+                      Positioned(
+                        left: 12,
+                        bottom: 12,
+                        right: 12,
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: const [
+                            Text(
+                              'Tap to play fullscreen',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w700,
+                                fontSize: 13,
+                                shadows: [
+                                  Shadow(
+                                    color: Colors.black54,
+                                    blurRadius: 8,
+                                    offset: Offset(0, 1),
                                   ),
                                 ],
                               ),
-                              child: const Icon(
-                                Icons.play_arrow_rounded,
-                                color: Colors.black87,
-                                size: 30,
-                              ),
                             ),
-                          ),
+                            Icon(
+                              Icons.fullscreen,
+                              color: Colors.white,
+                              size: 18,
+                            ),
+                          ],
                         ),
-                        Positioned(
-                          left: 12,
-                          bottom: 12,
-                          right: 12,
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: const [
-                              Text(
-                                'Tap to play fullscreen',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w700,
-                                  fontSize: 13,
-                                  shadows: [
-                                    Shadow(color: Colors.black54, blurRadius: 8, offset: Offset(0, 1)),
-                                  ],
-                                ),
-                              ),
-                              Icon(Icons.fullscreen, color: Colors.white, size: 18),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
-                );
-              },
-            ),
-          ],
-        ),
-      );
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _buildMedia() {
     return Stack(
       children: [
-        const Positioned.fill(child: CustomPaint(painter: _HomeBackgroundPainter())),
+        const Positioned.fill(
+          child: CustomPaint(painter: _HomeBackgroundPainter()),
+        ),
         DefaultTabController(
           length: 3,
           child: Column(
@@ -3759,7 +4420,11 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
               child: Text(
                 _mediaError!,
                 textAlign: TextAlign.center,
-                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.redAccent),
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.redAccent,
+                ),
               ),
             ),
             const SizedBox(height: 12),
@@ -3768,62 +4433,87 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF0F88D5),
                 foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 18,
+                  vertical: 10,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
                 elevation: 0,
               ),
-              child: const Text('Retry', style: TextStyle(fontWeight: FontWeight.w700)),
+              child: const Text(
+                'Retry',
+                style: TextStyle(fontWeight: FontWeight.w700),
+              ),
             ),
           ],
         ),
       );
     }
 
-      return LayoutBuilder(
-        builder: (context, constraints) {
-          final width = constraints.maxWidth;
-          final columns = _mediaGridColumns(width);
-          final spacing = 12.0;
-          final horizontalPadding = _pageHorizontalPadding(width);
-          final itemWidth = ((width - (horizontalPadding * 2) - (spacing * (columns - 1))) / columns)
-              .clamp(120.0, 520.0)
-              .toDouble();
-          return GridView.builder(
-            padding: EdgeInsets.fromLTRB(horizontalPadding, 16, horizontalPadding, 16),
-            itemCount: _projectDevImages.length,
-            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: columns,
-              crossAxisSpacing: spacing,
-              mainAxisSpacing: spacing,
-              childAspectRatio: 1,
-            ),
-            itemBuilder: (context, index) {
-              final url = _projectDevImages[index];
-              return ClipRRect(
-                borderRadius: BorderRadius.circular(12),
-                child: GestureDetector(
-                  onTap: () {
-                    final captions =
-                        _projectDevImages.asMap().entries.map((entry) => 'Media ${entry.key + 1}').toList();
-                    _openImageGalleryFullScreen(context, _projectDevImages, index, captions: captions);
-                  },
-                  child: _cachedNetworkImage(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = constraints.maxWidth;
+        final columns = _mediaGridColumns(width);
+        final spacing = 12.0;
+        final horizontalPadding = _pageHorizontalPadding(width);
+        final itemWidth =
+            ((width - (horizontalPadding * 2) - (spacing * (columns - 1))) /
+                    columns)
+                .clamp(120.0, 520.0)
+                .toDouble();
+        return GridView.builder(
+          padding: EdgeInsets.fromLTRB(
+            horizontalPadding,
+            16,
+            horizontalPadding,
+            16,
+          ),
+          itemCount: _projectDevImages.length,
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: columns,
+            crossAxisSpacing: spacing,
+            mainAxisSpacing: spacing,
+            childAspectRatio: 1,
+          ),
+          itemBuilder: (context, index) {
+            final url = _projectDevImages[index];
+            return ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: GestureDetector(
+                onTap: () {
+                  final captions = _projectDevImages
+                      .asMap()
+                      .entries
+                      .map((entry) => 'Media ${entry.key + 1}')
+                      .toList();
+                  _openImageGalleryFullScreen(
                     context,
-                    url,
-                    fit: BoxFit.cover,
-                    width: itemWidth,
-                    height: itemWidth,
-                  ),
+                    _projectDevImages,
+                    index,
+                    captions: captions,
+                  );
+                },
+                child: _cachedNetworkImage(
+                  context,
+                  url,
+                  fit: BoxFit.cover,
+                  width: itemWidth,
+                  height: itemWidth,
                 ),
-              );
-            },
-          );
-        },
-      );
-    }
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
 
   Widget _buildFutureMedia() {
-    if (!_futureMediaFetched && !_isLoadingFutureMedia && _futureMediaError == null) {
+    if (!_futureMediaFetched &&
+        !_isLoadingFutureMedia &&
+        _futureMediaError == null) {
       _loadFutureDevImages();
     }
 
@@ -3841,7 +4531,11 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
               child: Text(
                 _futureMediaError!,
                 textAlign: TextAlign.center,
-                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.redAccent),
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.redAccent,
+                ),
               ),
             ),
             const SizedBox(height: 12),
@@ -3850,68 +4544,98 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF0F88D5),
                 foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 18,
+                  vertical: 10,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
                 elevation: 0,
               ),
-              child: const Text('Retry', style: TextStyle(fontWeight: FontWeight.w700)),
+              child: const Text(
+                'Retry',
+                style: TextStyle(fontWeight: FontWeight.w700),
+              ),
             ),
           ],
         ),
       );
     }
 
-    if (_futureMediaFetched && _futureDevImages.isEmpty && !_isLoadingFutureMedia && _futureMediaError == null) {
+    if (_futureMediaFetched &&
+        _futureDevImages.isEmpty &&
+        !_isLoadingFutureMedia &&
+        _futureMediaError == null) {
       return const Center(
         child: Text(
           'No future media available for this project.',
-          style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Color(0xFF6C7A89)),
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            color: Color(0xFF6C7A89),
+          ),
         ),
       );
     }
 
-      return LayoutBuilder(
-        builder: (context, constraints) {
-          final width = constraints.maxWidth;
-          final columns = _mediaGridColumns(width);
-          final spacing = 12.0;
-          final horizontalPadding = _pageHorizontalPadding(width);
-          final itemWidth = ((width - (horizontalPadding * 2) - (spacing * (columns - 1))) / columns)
-              .clamp(120.0, 520.0)
-              .toDouble();
-          return GridView.builder(
-            padding: EdgeInsets.fromLTRB(horizontalPadding, 16, horizontalPadding, 16),
-            itemCount: _futureDevImages.length,
-            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: columns,
-              crossAxisSpacing: spacing,
-              mainAxisSpacing: spacing,
-              childAspectRatio: 1,
-            ),
-            itemBuilder: (context, index) {
-              final url = _futureDevImages[index];
-              return ClipRRect(
-                borderRadius: BorderRadius.circular(12),
-                child: GestureDetector(
-                  onTap: () {
-                    final captions =
-                        _futureDevImages.asMap().entries.map((entry) => 'Future ${entry.key + 1}').toList();
-                    _openImageGalleryFullScreen(context, _futureDevImages, index, captions: captions);
-                  },
-                  child: _cachedNetworkImage(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = constraints.maxWidth;
+        final columns = _mediaGridColumns(width);
+        final spacing = 12.0;
+        final horizontalPadding = _pageHorizontalPadding(width);
+        final itemWidth =
+            ((width - (horizontalPadding * 2) - (spacing * (columns - 1))) /
+                    columns)
+                .clamp(120.0, 520.0)
+                .toDouble();
+        return GridView.builder(
+          padding: EdgeInsets.fromLTRB(
+            horizontalPadding,
+            16,
+            horizontalPadding,
+            16,
+          ),
+          itemCount: _futureDevImages.length,
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: columns,
+            crossAxisSpacing: spacing,
+            mainAxisSpacing: spacing,
+            childAspectRatio: 1,
+          ),
+          itemBuilder: (context, index) {
+            final url = _futureDevImages[index];
+            return ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: GestureDetector(
+                onTap: () {
+                  final captions = _futureDevImages
+                      .asMap()
+                      .entries
+                      .map((entry) => 'Future ${entry.key + 1}')
+                      .toList();
+                  _openImageGalleryFullScreen(
                     context,
-                    url,
-                    fit: BoxFit.cover,
-                    width: itemWidth,
-                    height: itemWidth,
-                  ),
+                    _futureDevImages,
+                    index,
+                    captions: captions,
+                  );
+                },
+                child: _cachedNetworkImage(
+                  context,
+                  url,
+                  fit: BoxFit.cover,
+                  width: itemWidth,
+                  height: itemWidth,
                 ),
-              );
-            },
-          );
-        },
-      );
-    }
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
 
   Widget _buildVideosTab() {
     final project = _projects[_selectedProject];
@@ -3931,7 +4655,11 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           padding: const EdgeInsets.all(24),
           child: Text(
             _videosError!,
-            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Color(0xFF6C7A89)),
+            style: const TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+              color: Color(0xFF6C7A89),
+            ),
             textAlign: TextAlign.center,
           ),
         ),
@@ -3944,39 +4672,51 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           padding: EdgeInsets.all(24),
           child: Text(
             'No video available for this project.',
-            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Color(0xFF6C7A89)),
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+              color: Color(0xFF6C7A89),
+            ),
             textAlign: TextAlign.center,
           ),
         ),
       );
     }
 
-      return LayoutBuilder(
-        builder: (context, constraints) {
-          final width = constraints.maxWidth;
-          final horizontalPadding = _pageHorizontalPadding(width);
-          final maxWidth = min(_contentMaxWidth(width), 720.0);
-          return ListView(
-            padding: EdgeInsets.fromLTRB(horizontalPadding, 20, horizontalPadding, 24),
-            children: videos.map((video) {
-              final externalUrl = video.originalLink.isNotEmpty ? video.originalLink : 'https://youtu.be/${video.id}';
-              return Align(
-                alignment: Alignment.topCenter,
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(maxWidth: maxWidth),
-                  child: _buildVideoCard(
-                    title: video.title,
-                    videoId: video.id,
-                    externalUrl: externalUrl,
-                    onPlay: () => _openVideoFullScreen(video.id, video.title, externalUrl),
-                  ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = constraints.maxWidth;
+        final horizontalPadding = _pageHorizontalPadding(width);
+        final maxWidth = min(_contentMaxWidth(width), 720.0);
+        return ListView(
+          padding: EdgeInsets.fromLTRB(
+            horizontalPadding,
+            20,
+            horizontalPadding,
+            24,
+          ),
+          children: videos.map((video) {
+            final externalUrl = video.originalLink.isNotEmpty
+                ? video.originalLink
+                : 'https://youtu.be/${video.id}';
+            return Align(
+              alignment: Alignment.topCenter,
+              child: ConstrainedBox(
+                constraints: BoxConstraints(maxWidth: maxWidth),
+                child: _buildVideoCard(
+                  title: video.title,
+                  videoId: video.id,
+                  externalUrl: externalUrl,
+                  onPlay: () =>
+                      _openVideoFullScreen(video.id, video.title, externalUrl),
                 ),
-              );
-            }).toList(),
-          );
-        },
-      );
-    }
+              ),
+            );
+          }).toList(),
+        );
+      },
+    );
+  }
 
   void _openVideoFullScreen(String videoId, String title, String externalUrl) {
     Navigator.of(context).push(
@@ -3996,7 +4736,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       children: [
         Positioned.fill(
           child: IgnorePointer(
-            child: const CustomPaint(painter: _AnnouncementsBackgroundPainter()),
+            child: const CustomPaint(
+              painter: _AnnouncementsBackgroundPainter(),
+            ),
           ),
         ),
         _buildAnnouncementsContent(),
@@ -4005,13 +4747,13 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   }
 
   Widget _buildAnnouncementsContent() {
-    if (_announcements.isEmpty && !_isLoadingAnnouncements && _announcementsError == null) {
+    if (_announcements.isEmpty &&
+        !_isLoadingAnnouncements &&
+        _announcementsError == null) {
       _loadAnnouncements();
     }
 
-    final widgets = <Widget>[
-      _announcementsHeader(),
-    ];
+    final widgets = <Widget>[_announcementsHeader()];
 
     if (_isLoadingAnnouncements && _announcements.isEmpty) {
       widgets.add(
@@ -4020,7 +4762,11 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           child: Center(
             child: Text(
               'Loading announcements...',
-              style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700, color: Color(0xFF6C7A89)),
+              style: TextStyle(
+                fontSize: 14.5,
+                fontWeight: FontWeight.w700,
+                color: Color(0xFF6C7A89),
+              ),
             ),
           ),
         ),
@@ -4047,11 +4793,19 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF0F88D5),
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 18,
+                    vertical: 10,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                   elevation: 0,
                 ),
-                child: const Text('Retry', style: TextStyle(fontWeight: FontWeight.w700)),
+                child: const Text(
+                  'Retry',
+                  style: TextStyle(fontWeight: FontWeight.w700),
+                ),
               ),
             ],
           ),
@@ -4065,7 +4819,11 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
             child: Text(
               'No Announcement yet',
               textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700, color: Color(0xFF6C7A89)),
+              style: TextStyle(
+                fontSize: 14.5,
+                fontWeight: FontWeight.w700,
+                color: Color(0xFF6C7A89),
+              ),
             ),
           ),
         ),
@@ -4074,34 +4832,36 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       widgets.addAll(_announcements.map(_announcementCard));
     }
 
-      final listView = LayoutBuilder(
-        builder: (context, constraints) {
-          final width = constraints.maxWidth;
-          final horizontalPadding = _pageHorizontalPadding(width);
-          final maxWidth = _contentMaxWidth(width);
-          final wrappedWidgets = widgets
-              .map(
-                (child) => Align(
-                  alignment: Alignment.topCenter,
-                  child: ConstrainedBox(
-                    constraints: BoxConstraints(maxWidth: maxWidth),
-                    child: child,
-                  ),
+    final listView = LayoutBuilder(
+      builder: (context, constraints) {
+        final width = constraints.maxWidth;
+        final horizontalPadding = _pageHorizontalPadding(width);
+        final maxWidth = _contentMaxWidth(width);
+        final wrappedWidgets = widgets
+            .map(
+              (child) => Align(
+                alignment: Alignment.topCenter,
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(maxWidth: maxWidth),
+                  child: child,
                 ),
-              )
-              .toList();
-          return ListView(
-            physics: const AlwaysScrollableScrollPhysics(),
-            padding: EdgeInsets.fromLTRB(horizontalPadding, 16, horizontalPadding, 24),
-            children: wrappedWidgets,
-          );
-        },
-      );
-
-    return RefreshIndicator(
-      onRefresh: _loadAnnouncements,
-      child: listView,
+              ),
+            )
+            .toList();
+        return ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: EdgeInsets.fromLTRB(
+            horizontalPadding,
+            16,
+            horizontalPadding,
+            24,
+          ),
+          children: wrappedWidgets,
+        );
+      },
     );
+
+    return RefreshIndicator(onRefresh: _loadAnnouncements, child: listView);
   }
 
   Widget _announcementsHeader() {
@@ -4129,7 +4889,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   }
 
   Widget _announcementCard(_AnnouncementItem item) {
-    final preview = item.content.trim().isEmpty ? 'No content provided.' : item.content.trim();
+    final preview = item.content.trim().isEmpty
+        ? 'No content provided.'
+        : item.content.trim();
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -4169,7 +4931,10 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                       ),
                     ),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 6,
+                      ),
                       decoration: BoxDecoration(
                         color: const Color(0xFF0F88D5).withOpacity(0.08),
                         borderRadius: BorderRadius.circular(20),
@@ -4190,7 +4955,11 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                   preview,
                   maxLines: 3,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 13.5, color: Color(0xFF4A5565), height: 1.4),
+                  style: const TextStyle(
+                    fontSize: 13.5,
+                    color: Color(0xFF4A5565),
+                    height: 1.4,
+                  ),
                 ),
               ],
             ),
@@ -4217,10 +4986,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
               Container(
                 decoration: const BoxDecoration(
                   gradient: LinearGradient(
-                    colors: [
-                      Color(0xFFF6F9FC),
-                      Color(0xFFE9F2FB),
-                    ],
+                    colors: [Color(0xFFF6F9FC), Color(0xFFE9F2FB)],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ),
@@ -4233,7 +4999,10 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
                       decoration: BoxDecoration(
                         color: const Color(0xFF0F88D5).withOpacity(0.1),
                         borderRadius: BorderRadius.circular(24),
@@ -4272,7 +5041,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                         ],
                       ),
                       child: Text(
-                        item.content.trim().isEmpty ? 'No content provided.' : item.content.trim(),
+                        item.content.trim().isEmpty
+                            ? 'No content provided.'
+                            : item.content.trim(),
                         style: const TextStyle(
                           fontSize: 14.5,
                           color: Color(0xFF2D3A4B),
@@ -4304,7 +5075,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       'Sep',
       'Oct',
       'Nov',
-      'Dec'
+      'Dec',
     ];
     final safeMonth = (date.month - 1).clamp(0, months.length - 1);
     final month = months[safeMonth];
@@ -4318,7 +5089,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       children: [
         Positioned.fill(
           child: IgnorePointer(
-            child: const CustomPaint(painter: _AnnouncementsBackgroundPainter()),
+            child: const CustomPaint(
+              painter: _AnnouncementsBackgroundPainter(),
+            ),
           ),
         ),
         _buildHermosaChatContent(),
@@ -4340,35 +5113,83 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
               maxHeight: constraints.maxHeight,
             ),
             child: Padding(
-              padding: EdgeInsets.fromLTRB(horizontalPadding, 18, horizontalPadding, 16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Hermosa',
-                    style: TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.w800,
-                      color: Color(0xFF1F2A3D),
+              padding: EdgeInsets.fromLTRB(
+                horizontalPadding,
+                18,
+                horizontalPadding,
+                16,
+              ),
+              child: DefaultTabController(
+                length: 2,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const TabBar(
+                      tabs: [
+                        Tab(text: 'Hermosa'),
+                        Tab(text: 'Company Profile'),
+                      ],
                     ),
-                  ),
-                  const SizedBox(height: 6),
-                  const Text(
-                    'Chat support for sales and project inquiries.',
-                    style: TextStyle(fontSize: 13.5, color: Color(0xFF6C7A89)),
-                  ),
-                  const SizedBox(height: 16),
-                  Expanded(
-                    child: _buildHermosaChatMessages(),
-                  ),
-                  const SizedBox(height: 12),
-                  _buildHermosaChatComposer(),
-                ],
+                    const SizedBox(height: 12),
+                    Expanded(
+                      child: TabBarView(
+                        children: [
+                          _buildHermosaChatTab(),
+                          _buildCompanyProfileTab(),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
         );
       },
+    );
+  }
+
+  Widget _buildHermosaChatTab() {
+    return Column(
+      children: [
+        Expanded(child: _buildHermosaChatMessages()),
+        const SizedBox(height: 12),
+        _buildHermosaChatComposer(),
+      ],
+    );
+  }
+
+  Widget _buildCompanyProfileTab() {
+    const assetPath = 'assets/company_profile.pdf';
+    return Column(
+      children: [
+        Align(
+          alignment: Alignment.centerRight,
+          child: IconButton(
+            tooltip: 'Full screen',
+            onPressed: () => _openCompanyProfileFullScreen(context),
+            icon: const Icon(Icons.fullscreen),
+          ),
+        ),
+        Expanded(
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: kIsWeb
+                ? pdfrx.PdfViewer.asset(
+                    assetPath,
+                    controller: pdfrx.PdfViewerController(),
+                    params: _companyProfilePdfrxParams(),
+                  )
+                : SfPdfViewer.asset(
+                    assetPath,
+                    canShowPaginationDialog: false,
+                    canShowScrollHead: true,
+                    canShowScrollStatus: true,
+                    interactionMode: PdfInteractionMode.pan,
+                  ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -4395,7 +5216,11 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
             Expanded(
               child: Text(
                 'Say hello to Hermosa and ask about lots, prices, or project updates.',
-                style: TextStyle(fontSize: 13.5, color: Color(0xFF4A5565), height: 1.45),
+                style: TextStyle(
+                  fontSize: 13.5,
+                  color: Color(0xFF4A5565),
+                  height: 1.45,
+                ),
               ),
             ),
           ],
@@ -4421,7 +5246,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
             decoration: BoxDecoration(
               color: bubbleColor,
               borderRadius: BorderRadius.circular(14),
-              border: isUser ? null : Border.all(color: const Color(0xFFE4E9F1)),
+              border: isUser
+                  ? null
+                  : Border.all(color: const Color(0xFFE4E9F1)),
               boxShadow: [
                 BoxShadow(
                   color: Colors.black.withOpacity(0.06),
@@ -4439,19 +5266,28 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                         height: 16,
                         child: CircularProgressIndicator(
                           strokeWidth: 2,
-                          valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF0F88D5)),
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            Color(0xFF0F88D5),
+                          ),
                         ),
                       ),
                       SizedBox(width: 10),
                       Text(
                         'Hermosa is typing...',
-                        style: TextStyle(fontSize: 13.5, color: Color(0xFF4A5565)),
+                        style: TextStyle(
+                          fontSize: 13.5,
+                          color: Color(0xFF4A5565),
+                        ),
                       ),
                     ],
                   )
                 : Text(
                     message.text,
-                    style: TextStyle(fontSize: 13.5, color: textColor, height: 1.45),
+                    style: TextStyle(
+                      fontSize: 13.5,
+                      color: textColor,
+                      height: 1.45,
+                    ),
                   ),
           ),
         );
@@ -4510,11 +5346,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     if (text.isEmpty) return;
     setState(() {
       _hermosaMessages.add(_HermosaChatMessage(text: text, isUser: true));
-      _hermosaMessages.add(const _HermosaChatMessage(
-        text: '',
-        isUser: false,
-        isLoading: true,
-      ));
+      _hermosaMessages.add(
+        const _HermosaChatMessage(text: '', isUser: false, isLoading: true),
+      );
     });
     _hermosaMessageController.clear();
     _scrollHermosaToBottom();
@@ -4616,34 +5450,36 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   }) async {
     try {
       // Remove trailing slash from serverUrl if present
-      final baseUrl = serverUrl.endsWith('/') ? serverUrl.substring(0, serverUrl.length - 1) : serverUrl;
+      final baseUrl = serverUrl.endsWith('/')
+          ? serverUrl.substring(0, serverUrl.length - 1)
+          : serverUrl;
       final endpoint = '$baseUrl/api/chat';
-      
-      final response = await http.post(
-        Uri.parse(endpoint),
-        headers: const {
-          'Content-Type': 'application/json',
-        },
-        body: jsonEncode({
-          'contents': contents,
-          'model': model,
-        }),
-      ).timeout(
-        const Duration(seconds: 30),
-        onTimeout: () {
-          throw Exception('Request timeout - server took too long to respond');
-        },
-      );
+
+      final response = await http
+          .post(
+            Uri.parse(endpoint),
+            headers: const {'Content-Type': 'application/json'},
+            body: jsonEncode({'contents': contents, 'model': model}),
+          )
+          .timeout(
+            const Duration(seconds: 30),
+            onTimeout: () {
+              throw Exception(
+                'Request timeout - server took too long to respond',
+              );
+            },
+          );
 
       if (response.statusCode < 200 || response.statusCode >= 300) {
         debugPrint(
           'Server error ${response.statusCode}: ${_truncateResponseBody(response.body) ?? response.body}',
         );
-        
+
         // Try to parse error message from server
         try {
           final errorData = jsonDecode(response.body) as Map<String, dynamic>;
-          final errorMessage = errorData['message'] ?? errorData['error'] ?? 'Unknown error';
+          final errorMessage =
+              errorData['message'] ?? errorData['error'] ?? 'Unknown error';
           return 'Hermosa is unavailable right now: $errorMessage';
         } catch (_) {
           return 'Hermosa is unavailable right now (error ${response.statusCode}).';
@@ -4651,7 +5487,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       }
 
       final data = jsonDecode(response.body) as Map<String, dynamic>;
-      
+
       // Parse Gemini API response format (proxied through our server)
       final candidates = data['candidates'];
       if (candidates is List && candidates.isNotEmpty) {
@@ -4666,13 +5502,13 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           }
         }
       }
-      
+
       // Fallback: check for direct text field
       final fallbackText = data['text']?.toString().trim();
       if (fallbackText != null && fallbackText.isNotEmpty) {
         return fallbackText;
       }
-      
+
       return 'Hermosa could not generate a response. Please try again.';
     } on http.ClientException catch (e) {
       debugPrint('Network error connecting to server: $e');
@@ -4745,8 +5581,14 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     return _hermosaKbReady;
   }
 
-  Future<List<_HermosaKbChunk>> _extractHermosaPdfChunks(String assetPath, String source) async {
-    final document = await pdfrx.PdfDocument.openAsset(assetPath, useProgressiveLoading: false);
+  Future<List<_HermosaKbChunk>> _extractHermosaPdfChunks(
+    String assetPath,
+    String source,
+  ) async {
+    final document = await pdfrx.PdfDocument.openAsset(
+      assetPath,
+      useProgressiveLoading: false,
+    );
     final chunks = <_HermosaKbChunk>[];
     for (final page in document.pages) {
       final pageText = await page.loadStructuredText();
@@ -4756,12 +5598,14 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       for (final chunk in pageChunks) {
         final tokens = _tokenizeHermosa(chunk);
         if (tokens.isEmpty) continue;
-        chunks.add(_HermosaKbChunk(
-          source: source,
-          pageNumber: page.pageNumber,
-          text: chunk,
-          tokens: tokens,
-        ));
+        chunks.add(
+          _HermosaKbChunk(
+            source: source,
+            pageNumber: page.pageNumber,
+            text: chunk,
+            tokens: tokens,
+          ),
+        );
       }
     }
     await document.dispose();
@@ -4773,11 +5617,17 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     final queryTokens = _tokenizeHermosa(query);
     if (queryTokens.isEmpty) return '';
 
-    final scored = _hermosaKbChunks
-        .map((chunk) => MapEntry(chunk, _scoreHermosaChunk(queryTokens, chunk.tokens)))
-        .where((entry) => entry.value > 0)
-        .toList()
-      ..sort((a, b) => b.value.compareTo(a.value));
+    final scored =
+        _hermosaKbChunks
+            .map(
+              (chunk) => MapEntry(
+                chunk,
+                _scoreHermosaChunk(queryTokens, chunk.tokens),
+              ),
+            )
+            .where((entry) => entry.value > 0)
+            .toList()
+          ..sort((a, b) => b.value.compareTo(a.value));
 
     final topChunks = scored.take(5).map((entry) => entry.key).toList();
     if (topChunks.isEmpty) return '';
@@ -4800,16 +5650,23 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
   Set<String> _tokenizeHermosa(String text) {
     final matches = RegExp(r'[A-Za-z0-9]+').allMatches(text.toLowerCase());
-    return matches.map((m) => m.group(0)!).where((token) => token.length > 1).toSet();
+    return matches
+        .map((m) => m.group(0)!)
+        .where((token) => token.length > 1)
+        .toSet();
   }
 
   List<String> _splitHermosaText(String text, {required int maxChunkLength}) {
-    final words = text.split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
+    final words = text
+        .split(RegExp(r'\s+'))
+        .where((w) => w.isNotEmpty)
+        .toList();
     if (words.isEmpty) return const [];
     final chunks = <String>[];
     final buffer = StringBuffer();
     for (final word in words) {
-      if (buffer.isNotEmpty && buffer.length + word.length + 1 > maxChunkLength) {
+      if (buffer.isNotEmpty &&
+          buffer.length + word.length + 1 > maxChunkLength) {
         chunks.add(buffer.toString().trim());
         buffer.clear();
       }
@@ -4862,7 +5719,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         decoration: decoration,
         icon: Icons.info_outline_rounded,
         title: 'No FAQs uploaded yet',
-        message: 'We do not have FAQ content for $project. Please check again once it is available.',
+        message:
+            'We do not have FAQ content for $project. Please check again once it is available.',
       );
     }
 
@@ -4879,7 +5737,11 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
             SizedBox(height: 12),
             Text(
               'Loading FAQ document...',
-              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Color(0xFF2D3A4B)),
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+                color: Color(0xFF2D3A4B),
+              ),
             ),
           ],
         ),
@@ -4895,7 +5757,10 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           children: [
             Row(
               children: [
-                const Icon(Icons.error_outline_rounded, color: Colors.redAccent),
+                const Icon(
+                  Icons.error_outline_rounded,
+                  color: Colors.redAccent,
+                ),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
@@ -4915,11 +5780,19 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF0F88D5),
                 foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 10,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
                 elevation: 0,
               ),
-              child: const Text('Retry', style: TextStyle(fontWeight: FontWeight.w700)),
+              child: const Text(
+                'Retry',
+                style: TextStyle(fontWeight: FontWeight.w700),
+              ),
             ),
           ],
         ),
@@ -4938,7 +5811,10 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                 Row(
                   children: [
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 6,
+                      ),
                       decoration: BoxDecoration(
                         color: const Color(0xFF0F88D5).withOpacity(0.1),
                         borderRadius: BorderRadius.circular(20),
@@ -4955,11 +5831,18 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                     const SizedBox(width: 10),
                     const Text(
                       'FAQs Document',
-                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: Color(0xFF2D3A4B)),
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFF2D3A4B),
+                      ),
                     ),
                     const Spacer(),
                     PopupMenuButton<String>(
-                      icon: const Icon(Icons.more_vert, color: Color(0xFF4A5565)),
+                      icon: const Icon(
+                        Icons.more_vert,
+                        color: Color(0xFF4A5565),
+                      ),
                       onSelected: (value) {
                         if (value == 'download') {
                           _downloadFaqPdf(project);
@@ -4985,8 +5868,13 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                       onPressed: () => _adjustFaqZoom(-0.25),
                       icon: const Icon(Icons.zoom_out),
                     ),
-                    Text('${_faqZoomLevel.toStringAsFixed(1)}x',
-                        style: const TextStyle(fontWeight: FontWeight.w700, color: Color(0xFF2D3A4B))),
+                    Text(
+                      '${_faqZoomLevel.toStringAsFixed(1)}x',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF2D3A4B),
+                      ),
+                    ),
                     IconButton(
                       tooltip: 'Zoom in',
                       onPressed: () => _adjustFaqZoom(0.25),
@@ -5002,7 +5890,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                 Expanded(
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(12),
-                    child: kIsWeb && assetPath != null
+                    child: kIsWeb
                         ? pdfrx.PdfViewer.asset(
                             assetPath,
                             controller: _faqPdfControllerWeb,
@@ -5080,11 +5968,20 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       backgroundColor: Colors.white,
       minScale: 1.0,
       maxScale: 4.0,
-      calculateInitialZoom: (_, __, ___, ____) => _faqZoomLevel.clamp(1.0, 4.0).toDouble(),
+      calculateInitialZoom: (_, __, ___, ____) =>
+          _faqZoomLevel.clamp(1.0, 4.0).toDouble(),
       onViewerReady: (document, controller) {
         if (!mounted) return;
         setState(() => _faqZoomLevel = controller.currentZoom);
       },
+    );
+  }
+
+  pdfrx.PdfViewerParams _companyProfilePdfrxParams() {
+    return const pdfrx.PdfViewerParams(
+      backgroundColor: Colors.white,
+      minScale: 1.0,
+      maxScale: 4.0,
     );
   }
 
@@ -5106,14 +6003,22 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
               const SizedBox(width: 8),
               Text(
                 title,
-                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: Color(0xFF2D3A4B)),
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFF2D3A4B),
+                ),
               ),
             ],
           ),
           const SizedBox(height: 10),
           Text(
             message,
-            style: const TextStyle(fontSize: 13.5, color: Color(0xFF4A5565), height: 1.45),
+            style: const TextStyle(
+              fontSize: 13.5,
+              color: Color(0xFF4A5565),
+              height: 1.45,
+            ),
           ),
         ],
       ),
@@ -5186,7 +6091,6 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       ),
     );
   }
-
 }
 
 class _YoutubeVideoItem {
@@ -5224,11 +6128,7 @@ class _HermosaChatMessage {
   final bool isUser;
   final bool isLoading;
 
-  _HermosaChatMessage copyWith({
-    String? text,
-    bool? isUser,
-    bool? isLoading,
-  }) {
+  _HermosaChatMessage copyWith({String? text, bool? isUser, bool? isLoading}) {
     return _HermosaChatMessage(
       text: text ?? this.text,
       isUser: isUser ?? this.isUser,
@@ -5252,11 +6152,7 @@ class _HermosaKbChunk {
 }
 
 class _GeminiResult {
-  const _GeminiResult({
-    required this.statusCode,
-    this.reply,
-    this.bodySnippet,
-  });
+  const _GeminiResult({required this.statusCode, this.reply, this.bodySnippet});
 
   final int statusCode;
   final String? reply;
@@ -5264,10 +6160,7 @@ class _GeminiResult {
 }
 
 class _SalesMapGalleryItem {
-  const _SalesMapGalleryItem({
-    required this.title,
-    required this.url,
-  });
+  const _SalesMapGalleryItem({required this.title, required this.url});
 
   final String title;
   final String url;
@@ -5306,8 +6199,18 @@ class _HomeBackgroundPainter extends CustomPainter {
 
     final topGreen = Path()
       ..moveTo(0, size.height * 0.06)
-      ..quadraticBezierTo(size.width * 0.25, size.height * 0.01, size.width * 0.55, size.height * 0.08)
-      ..quadraticBezierTo(size.width * 0.8, size.height * 0.13, size.width, size.height * 0.07)
+      ..quadraticBezierTo(
+        size.width * 0.25,
+        size.height * 0.01,
+        size.width * 0.55,
+        size.height * 0.08,
+      )
+      ..quadraticBezierTo(
+        size.width * 0.8,
+        size.height * 0.13,
+        size.width,
+        size.height * 0.07,
+      )
       ..lineTo(size.width, 0)
       ..lineTo(0, 0)
       ..close();
@@ -5316,10 +6219,25 @@ class _HomeBackgroundPainter extends CustomPainter {
 
     final topBlue = Path()
       ..moveTo(0, size.height * 0.1)
-      ..quadraticBezierTo(size.width * 0.18, size.height * 0.05, size.width * 0.48, size.height * 0.12)
-      ..quadraticBezierTo(size.width * 0.75, size.height * 0.18, size.width, size.height * 0.12)
+      ..quadraticBezierTo(
+        size.width * 0.18,
+        size.height * 0.05,
+        size.width * 0.48,
+        size.height * 0.12,
+      )
+      ..quadraticBezierTo(
+        size.width * 0.75,
+        size.height * 0.18,
+        size.width,
+        size.height * 0.12,
+      )
       ..lineTo(size.width, size.height * 0.05)
-      ..quadraticBezierTo(size.width * 0.62, size.height * 0.12, size.width * 0.28, size.height * 0.05)
+      ..quadraticBezierTo(
+        size.width * 0.62,
+        size.height * 0.12,
+        size.width * 0.28,
+        size.height * 0.05,
+      )
       ..lineTo(0, size.height * 0.08)
       ..close();
     paint.color = const Color(0xFF0F88D5);
@@ -5328,8 +6246,18 @@ class _HomeBackgroundPainter extends CustomPainter {
     final bottomGreen = Path()
       ..moveTo(0, size.height)
       ..lineTo(0, size.height * 0.86)
-      ..quadraticBezierTo(size.width * 0.35, size.height * 0.9, size.width * 0.58, size.height * 0.82)
-      ..quadraticBezierTo(size.width * 0.8, size.height * 0.76, size.width, size.height * 0.82)
+      ..quadraticBezierTo(
+        size.width * 0.35,
+        size.height * 0.9,
+        size.width * 0.58,
+        size.height * 0.82,
+      )
+      ..quadraticBezierTo(
+        size.width * 0.8,
+        size.height * 0.76,
+        size.width,
+        size.height * 0.82,
+      )
       ..lineTo(size.width, size.height)
       ..close();
     paint.color = const Color(0xFF136735);
@@ -5337,8 +6265,18 @@ class _HomeBackgroundPainter extends CustomPainter {
 
     final bottomBlue = Path()
       ..moveTo(0, size.height * 0.92)
-      ..quadraticBezierTo(size.width * 0.25, size.height * 0.9, size.width * 0.52, size.height * 0.96)
-      ..quadraticBezierTo(size.width * 0.78, size.height * 1.02, size.width, size.height * 0.95)
+      ..quadraticBezierTo(
+        size.width * 0.25,
+        size.height * 0.9,
+        size.width * 0.52,
+        size.height * 0.96,
+      )
+      ..quadraticBezierTo(
+        size.width * 0.78,
+        size.height * 1.02,
+        size.width,
+        size.height * 0.95,
+      )
       ..lineTo(size.width, size.height)
       ..lineTo(0, size.height)
       ..close();
@@ -5347,10 +6285,25 @@ class _HomeBackgroundPainter extends CustomPainter {
 
     final subtleWave = Path()
       ..moveTo(0, size.height * 0.32)
-      ..quadraticBezierTo(size.width * 0.25, size.height * 0.28, size.width * 0.55, size.height * 0.35)
-      ..quadraticBezierTo(size.width * 0.8, size.height * 0.4, size.width, size.height * 0.34)
+      ..quadraticBezierTo(
+        size.width * 0.25,
+        size.height * 0.28,
+        size.width * 0.55,
+        size.height * 0.35,
+      )
+      ..quadraticBezierTo(
+        size.width * 0.8,
+        size.height * 0.4,
+        size.width,
+        size.height * 0.34,
+      )
       ..lineTo(size.width, size.height * 0.42)
-      ..quadraticBezierTo(size.width * 0.68, size.height * 0.48, size.width * 0.32, size.height * 0.4)
+      ..quadraticBezierTo(
+        size.width * 0.68,
+        size.height * 0.48,
+        size.width * 0.32,
+        size.height * 0.4,
+      )
       ..lineTo(0, size.height * 0.45)
       ..close();
     paint.color = Colors.white.withOpacity(0.65);
@@ -5374,8 +6327,18 @@ class _AnnouncementsBackgroundPainter extends CustomPainter {
     paint.color = const Color(0xFFF2F5F9);
     final softWave = Path()
       ..moveTo(0, size.height * 0.05)
-      ..quadraticBezierTo(size.width * 0.25, size.height * 0.02, size.width * 0.55, size.height * 0.08)
-      ..quadraticBezierTo(size.width * 0.82, size.height * 0.12, size.width, size.height * 0.05)
+      ..quadraticBezierTo(
+        size.width * 0.25,
+        size.height * 0.02,
+        size.width * 0.55,
+        size.height * 0.08,
+      )
+      ..quadraticBezierTo(
+        size.width * 0.82,
+        size.height * 0.12,
+        size.width,
+        size.height * 0.05,
+      )
       ..lineTo(size.width, 0)
       ..lineTo(0, 0)
       ..close();
@@ -5384,10 +6347,25 @@ class _AnnouncementsBackgroundPainter extends CustomPainter {
     paint.color = const Color(0xFFF6F8FB);
     final midWave = Path()
       ..moveTo(0, size.height * 0.20)
-      ..quadraticBezierTo(size.width * 0.22, size.height * 0.16, size.width * 0.52, size.height * 0.22)
-      ..quadraticBezierTo(size.width * 0.8, size.height * 0.26, size.width, size.height * 0.18)
+      ..quadraticBezierTo(
+        size.width * 0.22,
+        size.height * 0.16,
+        size.width * 0.52,
+        size.height * 0.22,
+      )
+      ..quadraticBezierTo(
+        size.width * 0.8,
+        size.height * 0.26,
+        size.width,
+        size.height * 0.18,
+      )
       ..lineTo(size.width, size.height * 0.28)
-      ..quadraticBezierTo(size.width * 0.66, size.height * 0.32, size.width * 0.32, size.height * 0.24)
+      ..quadraticBezierTo(
+        size.width * 0.66,
+        size.height * 0.32,
+        size.width * 0.32,
+        size.height * 0.24,
+      )
       ..lineTo(0, size.height * 0.30)
       ..close();
     canvas.drawPath(midWave, paint);
@@ -5395,8 +6373,18 @@ class _AnnouncementsBackgroundPainter extends CustomPainter {
     final bottomGreen = Path()
       ..moveTo(0, size.height)
       ..lineTo(0, size.height * 0.90)
-      ..quadraticBezierTo(size.width * 0.35, size.height * 0.93, size.width * 0.55, size.height * 0.88)
-      ..quadraticBezierTo(size.width * 0.78, size.height * 0.82, size.width, size.height * 0.88)
+      ..quadraticBezierTo(
+        size.width * 0.35,
+        size.height * 0.93,
+        size.width * 0.55,
+        size.height * 0.88,
+      )
+      ..quadraticBezierTo(
+        size.width * 0.78,
+        size.height * 0.82,
+        size.width,
+        size.height * 0.88,
+      )
       ..lineTo(size.width, size.height)
       ..close();
     paint.color = const Color(0xFF136735);
@@ -5404,8 +6392,18 @@ class _AnnouncementsBackgroundPainter extends CustomPainter {
 
     final bottomBlue = Path()
       ..moveTo(0, size.height * 0.94)
-      ..quadraticBezierTo(size.width * 0.28, size.height * 0.92, size.width * 0.52, size.height * 0.96)
-      ..quadraticBezierTo(size.width * 0.80, size.height * 1.00, size.width, size.height * 0.95)
+      ..quadraticBezierTo(
+        size.width * 0.28,
+        size.height * 0.92,
+        size.width * 0.52,
+        size.height * 0.96,
+      )
+      ..quadraticBezierTo(
+        size.width * 0.80,
+        size.height * 1.00,
+        size.width,
+        size.height * 0.95,
+      )
       ..lineTo(size.width, size.height)
       ..lineTo(0, size.height)
       ..close();
@@ -5415,10 +6413,25 @@ class _AnnouncementsBackgroundPainter extends CustomPainter {
     paint.color = Colors.white.withOpacity(0.85);
     final highlight = Path()
       ..moveTo(0, size.height * 0.76)
-      ..quadraticBezierTo(size.width * 0.25, size.height * 0.72, size.width * 0.55, size.height * 0.78)
-      ..quadraticBezierTo(size.width * 0.8, size.height * 0.84, size.width, size.height * 0.76)
+      ..quadraticBezierTo(
+        size.width * 0.25,
+        size.height * 0.72,
+        size.width * 0.55,
+        size.height * 0.78,
+      )
+      ..quadraticBezierTo(
+        size.width * 0.8,
+        size.height * 0.84,
+        size.width,
+        size.height * 0.76,
+      )
       ..lineTo(size.width, size.height * 0.84)
-      ..quadraticBezierTo(size.width * 0.68, size.height * 0.88, size.width * 0.32, size.height * 0.82)
+      ..quadraticBezierTo(
+        size.width * 0.68,
+        size.height * 0.88,
+        size.width * 0.32,
+        size.height * 0.82,
+      )
       ..lineTo(0, size.height * 0.86)
       ..close();
     canvas.drawPath(highlight, paint);
@@ -5440,7 +6453,8 @@ class _FullScreenYouTubePlayer extends StatefulWidget {
   final String externalUrl;
 
   @override
-  State<_FullScreenYouTubePlayer> createState() => _FullScreenYouTubePlayerState();
+  State<_FullScreenYouTubePlayer> createState() =>
+      _FullScreenYouTubePlayerState();
 }
 
 class _FullScreenYouTubePlayerState extends State<_FullScreenYouTubePlayer> {
@@ -5458,7 +6472,8 @@ class _FullScreenYouTubePlayerState extends State<_FullScreenYouTubePlayer> {
           loop: true,
           controlsVisibleAtStart: true,
           disableDragSeek: false,
-          forceHD: false, // Allow adaptive quality so playback can start faster on slower connections.
+          forceHD:
+              false, // Allow adaptive quality so playback can start faster on slower connections.
           enableCaption: false,
           useHybridComposition: true, // Better startup performance on Android.
         ),
@@ -5468,7 +6483,9 @@ class _FullScreenYouTubePlayerState extends State<_FullScreenYouTubePlayer> {
 
   @override
   void dispose() {
-    _mobileController?..pause()..dispose();
+    _mobileController
+      ?..pause()
+      ..dispose();
     super.dispose();
   }
 
@@ -5511,11 +6528,20 @@ class _FullScreenYouTubePlayerState extends State<_FullScreenYouTubePlayer> {
                       borderRadius: BorderRadius.circular(24),
                       child: InkWell(
                         borderRadius: BorderRadius.circular(24),
-                        onTap: () =>
-                            launchUrl(Uri.parse(widget.externalUrl), mode: LaunchMode.externalApplication),
+                        onTap: () => launchUrl(
+                          Uri.parse(widget.externalUrl),
+                          mode: LaunchMode.externalApplication,
+                        ),
                         child: const Padding(
-                          padding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                          child: Icon(Icons.open_in_new, color: Colors.white, size: 18),
+                          padding: EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 8,
+                          ),
+                          child: Icon(
+                            Icons.open_in_new,
+                            color: Colors.white,
+                            size: 18,
+                          ),
                         ),
                       ),
                     ),
@@ -5524,7 +6550,9 @@ class _FullScreenYouTubePlayerState extends State<_FullScreenYouTubePlayer> {
               ),
               Expanded(
                 child: SizedBox.expand(
-                  child: kIsWeb ? buildYouTubeEmbed(widget.videoId) : const SizedBox.shrink(),
+                  child: kIsWeb
+                      ? buildYouTubeEmbed(widget.videoId)
+                      : const SizedBox.shrink(),
                 ),
               ),
             ],
@@ -5555,12 +6583,18 @@ class _FullScreenYouTubePlayerState extends State<_FullScreenYouTubePlayer> {
           const Spacer(),
           Text(
             widget.title,
-            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w700,
+            ),
           ),
           const SizedBox(width: 12),
           IconButton(
             icon: const Icon(Icons.open_in_new, color: Colors.white),
-            onPressed: () => launchUrl(Uri.parse(widget.externalUrl), mode: LaunchMode.externalApplication),
+            onPressed: () => launchUrl(
+              Uri.parse(widget.externalUrl),
+              mode: LaunchMode.externalApplication,
+            ),
           ),
         ],
       ),
@@ -5568,11 +6602,7 @@ class _FullScreenYouTubePlayerState extends State<_FullScreenYouTubePlayer> {
         return Scaffold(
           backgroundColor: Colors.black,
           body: SafeArea(
-            child: Stack(
-              children: [
-                Positioned.fill(child: player),
-              ],
-            ),
+            child: Stack(children: [Positioned.fill(child: player)]),
           ),
         );
       },
