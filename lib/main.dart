@@ -62,7 +62,7 @@ class MyApp extends StatelessWidget {
           backgroundColor: const Color(0xFF0F88D5),
           foregroundColor: Colors.white,
         ),
-        tabBarTheme: TabBarThemeData(
+        tabBarTheme: TabBarTheme(
           labelColor: colorScheme.primary,
           unselectedLabelColor: Colors.grey[600],
           indicatorColor: colorScheme.primary,
@@ -229,8 +229,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                   : initialPage;
               if (currentIndex != activeIndex) {
                 activeIndex = currentIndex;
-                isZoomed =
-                    transformationControllers[activeIndex].value
+                isZoomed = transformationControllers[activeIndex]
+                        .value
                         .getMaxScaleOnAxis() >
                     1.01;
               }
@@ -255,8 +255,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                       color: Colors.white,
                       onSelected: (value) {
                         if (value == 'download') {
-                          final name =
-                              captions != null &&
+                          final name = captions != null &&
                                   captions.length == images.length
                               ? captions[currentIndex]
                               : 'image';
@@ -277,8 +276,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                   onPageChanged: (idx) {
                     setState(() {
                       activeIndex = idx;
-                      isZoomed =
-                          transformationControllers[activeIndex].value
+                      isZoomed = transformationControllers[activeIndex]
+                              .value
                               .getMaxScaleOnAxis() >
                           1.01;
                     });
@@ -306,9 +305,10 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                               if (!mounted) return;
                               if (index == activeIndex) {
                                 final nowZoomed =
-                                    transformationControllers[index].value
-                                        .getMaxScaleOnAxis() >
-                                    1.01;
+                                    transformationControllers[index]
+                                            .value
+                                            .getMaxScaleOnAxis() >
+                                        1.01;
                                 if (nowZoomed != isZoomed) {
                                   setState(() => isZoomed = nowZoomed);
                                 }
@@ -402,10 +402,10 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   ];
   final List<String> _msccEndUnitOptions = const ['Yes', 'No'];
   List<String> get _msccFurnishOptions => const [
-    'Semi Finished',
-    'Bare',
-    'Fully Finished',
-  ];
+        'Semi Finished',
+        'Bare',
+        'Fully Finished',
+      ];
   final List<int> _defaultDownpaymentOptions = const [0, 10, 30, 50, 100];
   final List<int> _msccDownpaymentOptions = const [30, 50, 100];
   late List<String> _phaseOptions = List.from(_defaultPhases);
@@ -465,11 +465,11 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     );
     _heroTextSlide =
         Tween<Offset>(begin: const Offset(0, -0.25), end: Offset.zero).animate(
-          CurvedAnimation(
-            parent: _homeAnimController,
-            curve: const Interval(0.25, 0.55, curve: Curves.easeOut),
-          ),
-        );
+      CurvedAnimation(
+        parent: _homeAnimController,
+        curve: const Interval(0.25, 0.55, curve: Curves.easeOut),
+      ),
+    );
     _cardsScale = Tween<double>(begin: 0.92, end: 1).animate(
       CurvedAnimation(
         parent: _homeAnimController,
@@ -506,20 +506,18 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   void _adjustFaqZoom(double delta) {
     if (kIsWeb) {
       if (!_faqPdfControllerWeb.isReady) return;
-      final newZoom = (_faqPdfControllerWeb.currentZoom + delta)
-          .clamp(1.0, 4.0)
-          .toDouble();
+      final newZoom =
+          (_faqPdfControllerWeb.currentZoom + delta).clamp(1.0, 4.0).toDouble();
       _faqPdfControllerWeb.setZoom(
         _faqPdfControllerWeb.centerPosition,
         newZoom,
-        duration: Duration.zero,
+        // duration: Duration.zero,
       );
       setState(() => _faqZoomLevel = newZoom);
       return;
     }
-    final newZoom = (_faqPdfController.zoomLevel + delta)
-        .clamp(1.0, 4.0)
-        .toDouble();
+    final newZoom =
+        (_faqPdfController.zoomLevel + delta).clamp(1.0, 4.0).toDouble();
     _faqPdfController.zoomLevel = newZoom;
     setState(() => _faqZoomLevel = newZoom);
   }
@@ -530,8 +528,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     final assetPath = _faqAssetPathForProject(_projects[_selectedProject]);
     final projectTitle =
         _selectedProject >= 0 && _selectedProject < _projectTitles.length
-        ? _projectTitles[_selectedProject]
-        : 'Project';
+            ? _projectTitles[_selectedProject]
+            : 'Project';
     final controller = PdfViewerController()..zoomLevel = _faqZoomLevel;
     Navigator.of(context).push(
       MaterialPageRoute(
@@ -877,18 +875,16 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       final dataList = response is List
           ? response
           : (response is Map && response['data'] is List
-                ? response['data'] as List<dynamic>
-                : <dynamic>[]);
+              ? response['data'] as List<dynamic>
+              : <dynamic>[]);
 
       final images = <String>[];
       for (final item in dataList) {
         if (item is! Map) continue;
         final projectName = item['project_name']?.toString();
         if (projectName == null ||
-            projectName.toUpperCase() != project.toUpperCase())
-          continue;
-        final imageValue =
-            item['image_link'] ??
+            projectName.toUpperCase() != project.toUpperCase()) continue;
+        final imageValue = item['image_link'] ??
             item['imageLink'] ??
             item['image_url'] ??
             item['image_URL'];
@@ -932,18 +928,16 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       final dataList = response is List
           ? response
           : (response is Map && response['data'] is List
-                ? response['data'] as List<dynamic>
-                : <dynamic>[]);
+              ? response['data'] as List<dynamic>
+              : <dynamic>[]);
 
       final images = <String>[];
       for (final item in dataList) {
         if (item is! Map) continue;
         final projectName = item['project_name']?.toString();
         if (projectName == null ||
-            projectName.toUpperCase() != project.toUpperCase())
-          continue;
-        final imageValue =
-            item['image_link'] ??
+            projectName.toUpperCase() != project.toUpperCase()) continue;
+        final imageValue = item['image_link'] ??
             item['imageLink'] ??
             item['image_url'] ??
             item['image_URL'];
@@ -1000,23 +994,21 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       final dataList = response is List
           ? response
           : (response is Map && response['data'] is List
-                ? response['data'] as List<dynamic>
-                : <dynamic>[]);
+              ? response['data'] as List<dynamic>
+              : <dynamic>[]);
 
       final videos = <_YoutubeVideoItem>[];
       for (final item in dataList) {
         if (item is! Map) continue;
         final projectName = item['project_name']?.toString();
         if (projectName == null ||
-            projectName.toUpperCase() != project.toUpperCase())
-          continue;
+            projectName.toUpperCase() != project.toUpperCase()) continue;
 
-        final rawLink =
-            (item['link'] ??
-                    item['url'] ??
-                    item['video_link'] ??
-                    item['videoUrl'])
-                ?.toString();
+        final rawLink = (item['link'] ??
+                item['url'] ??
+                item['video_link'] ??
+                item['videoUrl'])
+            ?.toString();
         if (rawLink == null || rawLink.trim().isEmpty) continue;
         final videoId = _extractYoutubeVideoId(rawLink);
         if (videoId == null) continue;
@@ -1063,8 +1055,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       final dataList = response is List
           ? response
           : (response is Map && response['data'] is List
-                ? response['data'] as List<dynamic>
-                : <dynamic>[]);
+              ? response['data'] as List<dynamic>
+              : <dynamic>[]);
 
       final announcements = <_AnnouncementItem>[];
       for (final item in dataList) {
@@ -1121,13 +1113,11 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
     await _localNotifications
         .resolvePlatformSpecificImplementation<
-          AndroidFlutterLocalNotificationsPlugin
-        >()
+            AndroidFlutterLocalNotificationsPlugin>()
         ?.requestNotificationsPermission();
     await _localNotifications
         .resolvePlatformSpecificImplementation<
-          IOSFlutterLocalNotificationsPlugin
-        >()
+            IOSFlutterLocalNotificationsPlugin>()
         ?.requestPermissions(alert: true, badge: true, sound: true);
 
     _notificationsInitialized = true;
@@ -1222,8 +1212,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           width: width,
           color: const Color(0xFFF4F7FB),
           alignment: Alignment.center,
-          child:
-              placeholder ??
+          child: placeholder ??
               const SizedBox(
                 width: 20,
                 height: 20,
@@ -1235,9 +1224,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
     final mediaQuery = MediaQuery.of(context);
     final dpr = mediaQuery.devicePixelRatio;
-    final effectiveWidth = (width != null && width.isFinite
-        ? width
-        : mediaQuery.size.width);
+    final effectiveWidth =
+        (width != null && width.isFinite ? width : mediaQuery.size.width);
 
     final optimizedUrl = allowOptimization
         ? _optimizedImageUrl(
@@ -1271,8 +1259,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           width: width,
           color: const Color(0xFFF4F7FB),
           alignment: Alignment.center,
-          child:
-              placeholder ??
+          child: placeholder ??
               const SizedBox(
                 width: 20,
                 height: 20,
@@ -1299,8 +1286,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           width: width,
           color: const Color(0xFFF4F7FB),
           alignment: Alignment.center,
-          child:
-              error ??
+          child: error ??
               const Icon(
                 Icons.broken_image,
                 color: Color(0xFF6C7A89),
@@ -1316,8 +1302,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     double? logicalHeight,
     double devicePixelRatio = 2.0,
   }) {
-    final baseWidth =
-        logicalWidth ??
+    final baseWidth = logicalWidth ??
         (logicalHeight != null
             ? logicalHeight * 1.2
             : 600); // rough fallback to avoid huge downloads
@@ -1507,8 +1492,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       final dataList = response is List
           ? response
           : (response is Map && response['data'] is List
-                ? response['data'] as List<dynamic>
-                : <dynamic>[]);
+              ? response['data'] as List<dynamic>
+              : <dynamic>[]);
 
       if (project == 'ERHD') {
         String? imageUrl;
@@ -1662,8 +1647,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
         final imageUrl = imageValue?.toString();
         final isCommercial = normalizedType == 'commercial';
-        final isResidential =
-            normalizedType == 'residential' ||
+        final isResidential = normalizedType == 'residential' ||
             normalizedType == null ||
             normalizedType.isEmpty;
 
@@ -1798,8 +1782,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     if (monthlyRate == 0) {
       return balance / months;
     }
-    final factor =
-        monthlyRate *
+    final factor = monthlyRate *
         (pow(1 + monthlyRate, months)) /
         (pow(1 + monthlyRate, months) - 1);
     return balance * factor;
@@ -1909,14 +1892,13 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     });
 
     try {
-      final dynamic response = await Supabase.instance.client
-          .from('mscc_price')
-          .select();
+      final dynamic response =
+          await Supabase.instance.client.from('mscc_price').select();
       final dataList = response is List
           ? response
           : (response is Map && response['data'] is List
-                ? response['data'] as List<dynamic>
-                : <dynamic>[]);
+              ? response['data'] as List<dynamic>
+              : <dynamic>[]);
 
       Map<String, dynamic>? selectedRow;
       final normalizedUnit = _normalizeKey(_selectedLotCategory);
@@ -1942,8 +1924,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
             _normalizeKey(floorValue) != normalizedFloor) {
           matches = false;
         }
-        final viewValue = (row['view'] ?? row['view_type'] ?? row['viewType'])
-            ?.toString();
+        final viewValue =
+            (row['view'] ?? row['view_type'] ?? row['viewType'])?.toString();
         if (viewValue != null && _normalizeKey(viewValue) != normalizedView) {
           matches = false;
         }
@@ -1952,12 +1934,11 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
             _normalizeKey(endUnitValue) != normalizedEndUnit) {
           matches = false;
         }
-        final furnishValue =
-            (row['furnish'] ??
-                    row['furnish_type'] ??
-                    row['type_of_furnish'] ??
-                    row['furnishType'])
-                ?.toString();
+        final furnishValue = (row['furnish'] ??
+                row['furnish_type'] ??
+                row['type_of_furnish'] ??
+                row['furnishType'])
+            ?.toString();
         if (furnishValue != null &&
             _normalizeKey(furnishValue) != normalizedFurnish) {
           matches = false;
@@ -2085,9 +2066,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       final phaseNumberString = RegExp(
         r'\d+',
       ).firstMatch(_selectedPhase)?.group(0);
-      final parsed = phaseNumberString != null
-          ? int.tryParse(phaseNumberString)
-          : null;
+      final parsed =
+          phaseNumberString != null ? int.tryParse(phaseNumberString) : null;
       phaseNumber = parsed ?? (_phaseIndex.round() + 1);
       if (phaseNumber < 1 || phaseNumber > _phaseOptions.length) {
         phaseNumber = 1;
@@ -2100,16 +2080,15 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       final tableName = isMvProject ? 'mvlc_price' : 'erhd_price';
       final response = isMvProject
           ? await Supabase.instance.client
-                .from(tableName)
-                .select()
-                .eq('phase', phaseNumber)
-                .limit(1)
+              .from(tableName)
+              .select()
+              .eq('phase', phaseNumber)
+              .limit(1)
           : await Supabase.instance.client.from(tableName).select().limit(1);
 
       final dataList = response as List<dynamic>? ?? [];
-      final data = dataList.isNotEmpty
-          ? dataList.first as Map<String, dynamic>?
-          : null;
+      final data =
+          dataList.isNotEmpty ? dataList.first as Map<String, dynamic>? : null;
 
       if (data == null || !data.containsKey(categoryKey)) {
         setState(() {
@@ -2392,8 +2371,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                                       controller: _lotSizeController,
                                       keyboardType:
                                           TextInputType.numberWithOptions(
-                                            decimal: true,
-                                          ),
+                                        decimal: true,
+                                      ),
                                       onChanged: _onLotSizeChanged,
                                       inputFormatters: [
                                         FilteringTextInputFormatter.allow(
@@ -2404,9 +2383,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                                         hintText: 'Enter lot size',
                                         contentPadding:
                                             const EdgeInsets.symmetric(
-                                              horizontal: 14,
-                                              vertical: 12,
-                                            ),
+                                          horizontal: 14,
+                                          vertical: 12,
+                                        ),
                                         filled: true,
                                         fillColor: const Color(0xFFF4F7FB),
                                         border: OutlineInputBorder(
@@ -2474,9 +2453,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                                         ),
                                         onChanged: (val) {
                                           final idx = val.round().clamp(
-                                            0,
-                                            _phaseOptions.length - 1,
-                                          );
+                                                0,
+                                                _phaseOptions.length - 1,
+                                              );
                                           setState(() {
                                             _phaseIndex = idx.toDouble();
                                             _selectedPhase = _phaseOptions[idx];
@@ -2533,9 +2512,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                                       ),
                                       onChanged: (val) {
                                         final idx = val.round().clamp(
-                                          0,
-                                          _lotCategoryOptions.length - 1,
-                                        );
+                                              0,
+                                              _lotCategoryOptions.length - 1,
+                                            );
                                         setState(() {
                                           _lotCategoryIndex = idx.toDouble();
                                           _selectedLotCategory =
@@ -2591,9 +2570,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                                         ),
                                         onChanged: (val) {
                                           final idx = val.round().clamp(
-                                            0,
-                                            _msccFloorLevels.length - 1,
-                                          );
+                                                0,
+                                                _msccFloorLevels.length - 1,
+                                              );
                                           setState(() {
                                             _floorLevelIndex = idx.toDouble();
                                             _selectedFloorLevel =
@@ -2611,11 +2590,10 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                                             (totalWidth - 24) / 3;
                                         final twoColWidth =
                                             (totalWidth - 12) / 2;
-                                        final fieldWidth =
-                                            (threeColWidth < 160
-                                                    ? twoColWidth
-                                                    : threeColWidth)
-                                                .clamp(120.0, totalWidth);
+                                        final fieldWidth = (threeColWidth < 160
+                                                ? twoColWidth
+                                                : threeColWidth)
+                                            .clamp(120.0, totalWidth);
                                         return Wrap(
                                           spacing: 12,
                                           runSpacing: 12,
@@ -2637,25 +2615,22 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                                                   ),
                                                   const SizedBox(height: 8),
                                                   DropdownButtonFormField<
-                                                    String
-                                                  >(
-                                                    initialValue: _selectedView,
+                                                      String>(
+                                                    value: _selectedView,
                                                     items: _msccViewOptions
                                                         .map(
                                                           (view) =>
                                                               DropdownMenuItem<
-                                                                String
-                                                              >(
-                                                                value: view,
-                                                                child: Text(
-                                                                  view,
-                                                                  style:
-                                                                      const TextStyle(
-                                                                        fontSize:
-                                                                            14,
-                                                                      ),
-                                                                ),
+                                                                  String>(
+                                                            value: view,
+                                                            child: Text(
+                                                              view,
+                                                              style:
+                                                                  const TextStyle(
+                                                                fontSize: 14,
                                                               ),
+                                                            ),
+                                                          ),
                                                         )
                                                         .toList(),
                                                     onChanged: (val) {
@@ -2670,39 +2645,43 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                                                     },
                                                     decoration: InputDecoration(
                                                       contentPadding:
-                                                          const EdgeInsets.symmetric(
-                                                            horizontal: 14,
-                                                            vertical: 12,
-                                                          ),
+                                                          const EdgeInsets
+                                                              .symmetric(
+                                                        horizontal: 14,
+                                                        vertical: 12,
+                                                      ),
                                                       filled: true,
                                                       fillColor: const Color(
                                                         0xFFF4F7FB,
                                                       ),
-                                                      border: OutlineInputBorder(
+                                                      border:
+                                                          OutlineInputBorder(
                                                         borderRadius:
-                                                            BorderRadius.circular(
-                                                              12,
-                                                            ),
+                                                            BorderRadius
+                                                                .circular(
+                                                          12,
+                                                        ),
                                                         borderSide:
                                                             const BorderSide(
-                                                              color: Color(
-                                                                0xFFE4E9F1,
-                                                              ),
-                                                            ),
+                                                          color: Color(
+                                                            0xFFE4E9F1,
+                                                          ),
+                                                        ),
                                                       ),
                                                       enabledBorder:
                                                           OutlineInputBorder(
-                                                            borderRadius:
-                                                                BorderRadius.circular(
-                                                                  12,
-                                                                ),
-                                                            borderSide:
-                                                                const BorderSide(
-                                                                  color: Color(
-                                                                    0xFFE4E9F1,
-                                                                  ),
-                                                                ),
+                                                        borderRadius:
+                                                            BorderRadius
+                                                                .circular(
+                                                          12,
+                                                        ),
+                                                        borderSide:
+                                                            const BorderSide(
+                                                          color: Color(
+                                                            0xFFE4E9F1,
                                                           ),
+                                                        ),
+                                                      ),
                                                     ),
                                                     icon: const Icon(
                                                       Icons
@@ -2729,26 +2708,22 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                                                   ),
                                                   const SizedBox(height: 8),
                                                   DropdownButtonFormField<
-                                                    String
-                                                  >(
-                                                    initialValue:
-                                                        _selectedEndUnit,
+                                                      String>(
+                                                    value: _selectedEndUnit,
                                                     items: _msccEndUnitOptions
                                                         .map(
                                                           (value) =>
                                                               DropdownMenuItem<
-                                                                String
-                                                              >(
-                                                                value: value,
-                                                                child: Text(
-                                                                  value,
-                                                                  style:
-                                                                      const TextStyle(
-                                                                        fontSize:
-                                                                            14,
-                                                                      ),
-                                                                ),
+                                                                  String>(
+                                                            value: value,
+                                                            child: Text(
+                                                              value,
+                                                              style:
+                                                                  const TextStyle(
+                                                                fontSize: 14,
                                                               ),
+                                                            ),
+                                                          ),
                                                         )
                                                         .toList(),
                                                     onChanged: (val) {
@@ -2759,39 +2734,43 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                                                     },
                                                     decoration: InputDecoration(
                                                       contentPadding:
-                                                          const EdgeInsets.symmetric(
-                                                            horizontal: 14,
-                                                            vertical: 12,
-                                                          ),
+                                                          const EdgeInsets
+                                                              .symmetric(
+                                                        horizontal: 14,
+                                                        vertical: 12,
+                                                      ),
                                                       filled: true,
                                                       fillColor: const Color(
                                                         0xFFF4F7FB,
                                                       ),
-                                                      border: OutlineInputBorder(
+                                                      border:
+                                                          OutlineInputBorder(
                                                         borderRadius:
-                                                            BorderRadius.circular(
-                                                              12,
-                                                            ),
+                                                            BorderRadius
+                                                                .circular(
+                                                          12,
+                                                        ),
                                                         borderSide:
                                                             const BorderSide(
-                                                              color: Color(
-                                                                0xFFE4E9F1,
-                                                              ),
-                                                            ),
+                                                          color: Color(
+                                                            0xFFE4E9F1,
+                                                          ),
+                                                        ),
                                                       ),
                                                       enabledBorder:
                                                           OutlineInputBorder(
-                                                            borderRadius:
-                                                                BorderRadius.circular(
-                                                                  12,
-                                                                ),
-                                                            borderSide:
-                                                                const BorderSide(
-                                                                  color: Color(
-                                                                    0xFFE4E9F1,
-                                                                  ),
-                                                                ),
+                                                        borderRadius:
+                                                            BorderRadius
+                                                                .circular(
+                                                          12,
+                                                        ),
+                                                        borderSide:
+                                                            const BorderSide(
+                                                          color: Color(
+                                                            0xFFE4E9F1,
                                                           ),
+                                                        ),
+                                                      ),
                                                     ),
                                                     icon: const Icon(
                                                       Icons
@@ -2818,26 +2797,22 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                                                   ),
                                                   const SizedBox(height: 8),
                                                   DropdownButtonFormField<
-                                                    String
-                                                  >(
-                                                    initialValue:
-                                                        _selectedFurnish,
+                                                      String>(
+                                                    value: _selectedFurnish,
                                                     items: _msccFurnishOptions
                                                         .map(
                                                           (value) =>
                                                               DropdownMenuItem<
-                                                                String
-                                                              >(
-                                                                value: value,
-                                                                child: Text(
-                                                                  value,
-                                                                  style:
-                                                                      const TextStyle(
-                                                                        fontSize:
-                                                                            14,
-                                                                      ),
-                                                                ),
+                                                                  String>(
+                                                            value: value,
+                                                            child: Text(
+                                                              value,
+                                                              style:
+                                                                  const TextStyle(
+                                                                fontSize: 14,
                                                               ),
+                                                            ),
+                                                          ),
                                                         )
                                                         .toList(),
                                                     onChanged: (val) {
@@ -2848,39 +2823,43 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                                                     },
                                                     decoration: InputDecoration(
                                                       contentPadding:
-                                                          const EdgeInsets.symmetric(
-                                                            horizontal: 14,
-                                                            vertical: 12,
-                                                          ),
+                                                          const EdgeInsets
+                                                              .symmetric(
+                                                        horizontal: 14,
+                                                        vertical: 12,
+                                                      ),
                                                       filled: true,
                                                       fillColor: const Color(
                                                         0xFFF4F7FB,
                                                       ),
-                                                      border: OutlineInputBorder(
+                                                      border:
+                                                          OutlineInputBorder(
                                                         borderRadius:
-                                                            BorderRadius.circular(
-                                                              12,
-                                                            ),
+                                                            BorderRadius
+                                                                .circular(
+                                                          12,
+                                                        ),
                                                         borderSide:
                                                             const BorderSide(
-                                                              color: Color(
-                                                                0xFFE4E9F1,
-                                                              ),
-                                                            ),
+                                                          color: Color(
+                                                            0xFFE4E9F1,
+                                                          ),
+                                                        ),
                                                       ),
                                                       enabledBorder:
                                                           OutlineInputBorder(
-                                                            borderRadius:
-                                                                BorderRadius.circular(
-                                                                  12,
-                                                                ),
-                                                            borderSide:
-                                                                const BorderSide(
-                                                                  color: Color(
-                                                                    0xFFE4E9F1,
-                                                                  ),
-                                                                ),
+                                                        borderRadius:
+                                                            BorderRadius
+                                                                .circular(
+                                                          12,
+                                                        ),
+                                                        borderSide:
+                                                            const BorderSide(
+                                                          color: Color(
+                                                            0xFFE4E9F1,
                                                           ),
+                                                        ),
+                                                      ),
                                                     ),
                                                     icon: const Icon(
                                                       Icons
@@ -2983,8 +2962,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                                       ),
                                       onChanged: _isPaymentYearsEnabled
                                           ? (val) => setState(
-                                              () => _paymentYears = val,
-                                            )
+                                                () => _paymentYears = val,
+                                              )
                                           : null,
                                     ),
                                   ),
@@ -3197,9 +3176,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     final projectCode = _projects[_selectedProject];
     final imagePath = _projectImages[projectCode];
     final screenWidth = MediaQuery.of(context).size.width;
-    final heroTitleSize = screenWidth < 380
-        ? 22.0
-        : (screenWidth < 420 ? 24.0 : 28.0);
+    final heroTitleSize =
+        screenWidth < 380 ? 22.0 : (screenWidth < 420 ? 24.0 : 28.0);
     final heroLocationSize = screenWidth < 380 ? 14.0 : 16.0;
     return FadeTransition(
       opacity: _heroBgOpacity,
@@ -3552,8 +3530,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     final mapQuery = isMvOrMscc
         ? '$mvlcMsccCoords (Mountain View Leisure Community)'
         : isErhd
-        ? '$erhdCoords (Eastwest Resorts Hub and Development)'
-        : locationLabel;
+            ? '$erhdCoords (Eastwest Resorts Hub and Development)'
+            : locationLabel;
     final mapEmbedUrl =
         'https://www.google.com/maps?q=${Uri.encodeComponent(mapQuery)}&hl=en&t=k&z=19&output=embed';
     final mapOpenUrl =
@@ -4017,12 +3995,10 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                 child: _buildSalesMapCard(
                   'ERHD Sales Map',
                   _erhdSalesMapImage,
-                  galleryImages: _erhdSalesMapImage != null
-                      ? [_erhdSalesMapImage!]
-                      : null,
-                  galleryCaptions: _erhdSalesMapImage != null
-                      ? const ['Sales Map']
-                      : null,
+                  galleryImages:
+                      _erhdSalesMapImage != null ? [_erhdSalesMapImage!] : null,
+                  galleryCaptions:
+                      _erhdSalesMapImage != null ? const ['Sales Map'] : null,
                 ),
               ),
             ),
@@ -4129,9 +4105,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                             } else {
                               final galleryItems = _salesMapGalleryItems();
                               urls = galleryItems.map((e) => e.url).toList();
-                              captions = galleryItems
-                                  .map((e) => e.title)
-                                  .toList();
+                              captions =
+                                  galleryItems.map((e) => e.title).toList();
                             }
                             if (urls.isEmpty) return;
                             final startIndex = urls.indexOf(imageUrl);
@@ -5124,18 +5099,27 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const TabBar(
-                      tabs: [
+                    TabBar(
+                      controller: _faqTabController,
+                      labelColor: Theme.of(context).colorScheme.primary,
+                      unselectedLabelColor: const Color(0xFF6C7A89),
+                      indicatorColor: Theme.of(context).colorScheme.primary,
+                      labelStyle: const TextStyle(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 13,
+                      ),
+                      tabs: const [
                         Tab(text: 'Hermosa'),
-                        Tab(text: 'Company Profile'),
+                        Tab(text: 'FAQs'),
                       ],
                     ),
                     const SizedBox(height: 12),
                     Expanded(
                       child: TabBarView(
+                        controller: _faqTabController,
                         children: [
                           _buildHermosaChatTab(),
-                          _buildCompanyProfileTab(),
+                          _buildFaqTab(),
                         ],
                       ),
                     ),
@@ -5159,35 +5143,18 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     );
   }
 
-  Widget _buildCompanyProfileTab() {
-    const assetPath = 'assets/company_profile.pdf';
+  Widget _buildFaqTab() {
+    final project = _projects[_selectedProject];
+    final assetPath = _faqAssetPathForProject(project);
+    if (_faqPdfBytes == null && !_isLoadingFaqDoc && _faqError == null) {
+      _loadFaqDoc();
+    }
     return Column(
       children: [
-        Align(
-          alignment: Alignment.centerRight,
-          child: IconButton(
-            tooltip: 'Full screen',
-            onPressed: () => _openCompanyProfileFullScreen(context),
-            icon: const Icon(Icons.fullscreen),
-          ),
-        ),
+        _faqHeader(project),
+        const SizedBox(height: 12),
         Expanded(
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(12),
-            child: kIsWeb
-                ? pdfrx.PdfViewer.asset(
-                    assetPath,
-                    controller: pdfrx.PdfViewerController(),
-                    params: _companyProfilePdfrxParams(),
-                  )
-                : SfPdfViewer.asset(
-                    assetPath,
-                    canShowPaginationDialog: false,
-                    canShowScrollHead: true,
-                    canShowScrollStatus: true,
-                    interactionMode: PdfInteractionMode.pan,
-                  ),
-          ),
+          child: _faqContentCard(project, assetPath),
         ),
       ],
     );
@@ -5246,9 +5213,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
             decoration: BoxDecoration(
               color: bubbleColor,
               borderRadius: BorderRadius.circular(14),
-              border: isUser
-                  ? null
-                  : Border.all(color: const Color(0xFFE4E9F1)),
+              border:
+                  isUser ? null : Border.all(color: const Color(0xFFE4E9F1)),
               boxShadow: [
                 BoxShadow(
                   color: Colors.black.withOpacity(0.06),
@@ -5457,18 +5423,18 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
       final response = await http
           .post(
-            Uri.parse(endpoint),
-            headers: const {'Content-Type': 'application/json'},
-            body: jsonEncode({'contents': contents, 'model': model}),
-          )
+        Uri.parse(endpoint),
+        headers: const {'Content-Type': 'application/json'},
+        body: jsonEncode({'contents': contents, 'model': model}),
+      )
           .timeout(
-            const Duration(seconds: 30),
-            onTimeout: () {
-              throw Exception(
-                'Request timeout - server took too long to respond',
-              );
-            },
+        const Duration(seconds: 30),
+        onTimeout: () {
+          throw Exception(
+            'Request timeout - server took too long to respond',
           );
+        },
+      );
 
       if (response.statusCode < 200 || response.statusCode >= 300) {
         debugPrint(
@@ -5560,7 +5526,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     _hermosaKbLoading = true;
     _hermosaKbError = null;
     try {
-      await pdfrx.pdfrxFlutterInitialize();
+      // await pdfrx.pdfrxFlutterInitialize();
       final chunks = <_HermosaKbChunk>[];
       chunks.addAll(await _extractHermosaPdfChunks('assets/mvlc.pdf', 'MVLC'));
       chunks.addAll(await _extractHermosaPdfChunks('assets/erhd.pdf', 'ERHD'));
@@ -5587,7 +5553,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   ) async {
     final document = await pdfrx.PdfDocument.openAsset(
       assetPath,
-      useProgressiveLoading: false,
+      // useProgressiveLoading: false,
     );
     final chunks = <_HermosaKbChunk>[];
     for (final page in document.pages) {
@@ -5617,17 +5583,16 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     final queryTokens = _tokenizeHermosa(query);
     if (queryTokens.isEmpty) return '';
 
-    final scored =
-        _hermosaKbChunks
-            .map(
-              (chunk) => MapEntry(
-                chunk,
-                _scoreHermosaChunk(queryTokens, chunk.tokens),
-              ),
-            )
-            .where((entry) => entry.value > 0)
-            .toList()
-          ..sort((a, b) => b.value.compareTo(a.value));
+    final scored = _hermosaKbChunks
+        .map(
+          (chunk) => MapEntry(
+            chunk,
+            _scoreHermosaChunk(queryTokens, chunk.tokens),
+          ),
+        )
+        .where((entry) => entry.value > 0)
+        .toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
 
     final topChunks = scored.take(5).map((entry) => entry.key).toList();
     if (topChunks.isEmpty) return '';
@@ -5657,10 +5622,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   }
 
   List<String> _splitHermosaText(String text, {required int maxChunkLength}) {
-    final words = text
-        .split(RegExp(r'\s+'))
-        .where((w) => w.isNotEmpty)
-        .toList();
+    final words =
+        text.split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
     if (words.isEmpty) return const [];
     final chunks = <String>[];
     final buffer = StringBuffer();
@@ -5968,7 +5931,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       backgroundColor: Colors.white,
       minScale: 1.0,
       maxScale: 4.0,
-      calculateInitialZoom: (_, __, ___, ____) =>
+      calculateInitialZoom: (
+              // _, __, ___, ____
+              ) =>
           _faqZoomLevel.clamp(1.0, 4.0).toDouble(),
       onViewerReady: (document, controller) {
         if (!mounted) return;
