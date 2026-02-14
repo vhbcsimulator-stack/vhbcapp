@@ -64,16 +64,20 @@ jobs:
           # We must manually specify the Distribution profile UUID.
           echo "Debug: Extracting UUID from PP_PATH=$PP_PATH"
           start_uuid=$(grep -aA1 "UUID" "$PP_PATH" | grep -o "[-A-Z0-9]\{36\}" || true)
-          echo "Debug: Grep result start_uuid=$start_uuid"
-          
           if [ -z "$start_uuid" ]; then
-            echo "Debug: Grep failed, trying security cms..."
             start_uuid=$(/usr/libexec/PlistBuddy -c "Print UUID" /dev/stdin <<< $(security cms -D -i "$PP_PATH") || true)
-            echo "Debug: Security cms result start_uuid=$start_uuid"
           fi
           
-          if [ -z "$start_uuid" ]; then
-            echo "Error: Could not extract UUID from provisioning profile. Please check if the profile is valid."
+          # EXTRACT TEAM ID: to prevent mismatch error
+          files_team_id=$(grep -aA2 "TeamIdentifier" "$PP_PATH" | grep -o "[-A-Z0-9]\{10\}" || true)
+          if [ -z "$files_team_id" ]; then
+             files_team_id=$(/usr/libexec/PlistBuddy -c "Print TeamIdentifier:0" /dev/stdin <<< $(security cms -D -i "$PP_PATH") || true)
+          fi
+          
+          echo "Debug: Extracted UUID=$start_uuid, TeamID=$files_team_id"
+          
+          if [ -z "$start_uuid" ] || [ -z "$files_team_id" ]; then
+            echo "Error: Could not extract UUID or Team ID from profile."
             exit 1
           fi
           
@@ -81,6 +85,7 @@ jobs:
           
           # Force Manual Signing so Xcode uses the Distribution Profile
           echo "PROVISIONING_PROFILE_SPECIFIER=$start_uuid" >> ios/Flutter/Release.xcconfig
+          echo "DEVELOPMENT_TEAM=$files_team_id" >> ios/Flutter/Release.xcconfig
           echo "CODE_SIGN_IDENTITY=iPhone Distribution" >> ios/Flutter/Release.xcconfig
           echo "CODE_SIGN_STYLE=Manual" >> ios/Flutter/Release.xcconfig
 
