@@ -59,7 +59,20 @@ jobs:
 
           # apply provisioning profile
           mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
-          cp $PP_PATH ~/Library/MobileDevice/Provisioning\ Profiles
+          
+          # EXTRACT UUID: Automatic Signing searches for Dev profiles and fails.
+          # We must manually specify the Distribution profile UUID.
+          start_uuid=$(grep -aA1 "UUID" "$PP_PATH" | grep -o "[-A-Z0-9]\{36\}")
+          if [ -z "$start_uuid" ]; then
+            start_uuid=$(/usr/libexec/PlistBuddy -c "Print UUID" /dev/stdin <<< $(security cms -D -i "$PP_PATH"))
+          fi
+          
+          cp "$PP_PATH" ~/Library/MobileDevice/Provisioning\ Profiles/"$start_uuid".mobileprovision
+          
+          # Force Manual Signing so Xcode uses the Distribution Profile
+          echo "PROVISIONING_PROFILE_SPECIFIER=$start_uuid" >> ios/Flutter/Release.xcconfig
+          echo "CODE_SIGN_IDENTITY=iPhone Distribution" >> ios/Flutter/Release.xcconfig
+          echo "CODE_SIGN_STYLE=Manual" >> ios/Flutter/Release.xcconfig
 
       - name: Build IPA
         run: |
