@@ -48,7 +48,7 @@ dependencies:
   flutter_web_plugins:
     sdk: flutter
   youtube_player_iframe: ^5.1.2
-  syncfusion_flutter_pdfviewer: ^31.2.16
+  syncfusion_flutter_pdfviewer: ^24.1.0
   http: ^1.2.2
   pdfrx: ^2.2.16
   flutter_svg: ^2.0.10
