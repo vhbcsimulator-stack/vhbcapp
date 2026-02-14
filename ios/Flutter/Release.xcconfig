@@ -1,1 +1,4 @@
 #include "Generated.xcconfig"
+
+DEVELOPMENT_TEAM = 7ZRN7ZP2QB
+
