@@ -88,6 +88,11 @@ jobs:
           echo "DEVELOPMENT_TEAM=$files_team_id" >> ios/Flutter/Release.xcconfig
           echo "CODE_SIGN_IDENTITY=iPhone Distribution" >> ios/Flutter/Release.xcconfig
           echo "CODE_SIGN_STYLE=Manual" >> ios/Flutter/Release.xcconfig
+          
+          # Update ExportOptions.plist for Manual Signing
+          /usr/libexec/PlistBuddy -c "Set :teamID $files_team_id" ios/Runner/ExportOptions.plist
+          /usr/libexec/PlistBuddy -c "Add :provisioningProfiles dict" ios/Runner/ExportOptions.plist || true
+          /usr/libexec/PlistBuddy -c "Add :provisioningProfiles:vhbc.app string $start_uuid" ios/Runner/ExportOptions.plist
 
       - name: Build IPA
         run: |
