@@ -93,9 +93,14 @@ jobs:
         run: |
           flutter build ipa --release --export-options-plist=ios/Runner/ExportOptions.plist
 
+      - name: Debug - List Build Directory
+        run: |
+          echo "Listing build/ios directory:"
+          ls -R build/ios || echo "build/ios not found"
+          
       - name: Upload IPA Artifact
         uses: actions/upload-artifact@v4
         with:
           name: ios-ipa
-          path: build/ios/ipa/*.ipa
+          path: build/ios/**/*.ipa
           retention-days: 5
