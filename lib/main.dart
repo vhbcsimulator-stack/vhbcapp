@@ -19,8 +19,8 @@ import 'map_embed_stub.dart' if (dart.library.html) 'map_embed_web.dart';
 import 'download_helper_stub.dart'
     if (dart.library.html) 'download_helper_web.dart'
     if (dart.library.io) 'download_helper_io.dart';
-import 'cache_manager.dart';
-import 'optimized_image.dart';
+// import 'cache_manager.dart';
+// import 'optimized_image.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -62,6 +62,7 @@ class MyApp extends StatelessWidget {
           backgroundColor: const Color(0xFF0F88D5),
           foregroundColor: Colors.white,
         ),
+        /*
         tabBarTheme: TabBarTheme(
           labelColor: colorScheme.primary,
           unselectedLabelColor: Colors.grey[600],
@@ -71,6 +72,7 @@ class MyApp extends StatelessWidget {
             fontSize: 13,
           ),
         ),
+        */
         elevatedButtonTheme: ElevatedButtonThemeData(
           style: ElevatedButton.styleFrom(
             backgroundColor: const Color(0xFF0F88D5),
@@ -589,6 +591,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     );
   }
 
+  /*
   void _openCompanyProfileFullScreen(BuildContext context) {
     const assetPath = 'assets/company_profile.pdf';
     Navigator.of(context).push(
@@ -647,6 +650,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       ),
     );
   }
+  */
 
   void _onComputeTabChanged() {
     if (_computeTabIndex != _computeTabController.index &&
@@ -5931,10 +5935,12 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       backgroundColor: Colors.white,
       minScale: 1.0,
       maxScale: 4.0,
+      /*
       calculateInitialZoom: (
-              // _, __, ___, ____
-              ) =>
+            // _, __, ___, ____
+            ) =>
           _faqZoomLevel.clamp(1.0, 4.0).toDouble(),
+      */
       onViewerReady: (document, controller) {
         if (!mounted) return;
         setState(() => _faqZoomLevel = controller.currentZoom);
