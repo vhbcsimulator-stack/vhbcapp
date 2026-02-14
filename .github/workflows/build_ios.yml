@@ -62,9 +62,19 @@ jobs:
           
           # EXTRACT UUID: Automatic Signing searches for Dev profiles and fails.
           # We must manually specify the Distribution profile UUID.
-          start_uuid=$(grep -aA1 "UUID" "$PP_PATH" | grep -o "[-A-Z0-9]\{36\}")
+          echo "Debug: Extracting UUID from PP_PATH=$PP_PATH"
+          start_uuid=$(grep -aA1 "UUID" "$PP_PATH" | grep -o "[-A-Z0-9]\{36\}" || true)
+          echo "Debug: Grep result start_uuid=$start_uuid"
+          
           if [ -z "$start_uuid" ]; then
-            start_uuid=$(/usr/libexec/PlistBuddy -c "Print UUID" /dev/stdin <<< $(security cms -D -i "$PP_PATH"))
+            echo "Debug: Grep failed, trying security cms..."
+            start_uuid=$(/usr/libexec/PlistBuddy -c "Print UUID" /dev/stdin <<< $(security cms -D -i "$PP_PATH") || true)
+            echo "Debug: Security cms result start_uuid=$start_uuid"
+          fi
+          
+          if [ -z "$start_uuid" ]; then
+            echo "Error: Could not extract UUID from provisioning profile. Please check if the profile is valid."
+            exit 1
           fi
           
           cp "$PP_PATH" ~/Library/MobileDevice/Provisioning\ Profiles/"$start_uuid".mobileprovision
