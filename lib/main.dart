@@ -19,8 +19,6 @@ import 'map_embed_stub.dart' if (dart.library.html) 'map_embed_web.dart';
 import 'download_helper_stub.dart'
     if (dart.library.html) 'download_helper_web.dart'
     if (dart.library.io) 'download_helper_io.dart';
-// import 'cache_manager.dart';
-// import 'optimized_image.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -62,8 +60,7 @@ class MyApp extends StatelessWidget {
           backgroundColor: const Color(0xFF0F88D5),
           foregroundColor: Colors.white,
         ),
-        /*
-        tabBarTheme: TabBarTheme(
+        tabBarTheme: TabBarThemeData(
           labelColor: colorScheme.primary,
           unselectedLabelColor: Colors.grey[600],
           indicatorColor: colorScheme.primary,
@@ -72,7 +69,6 @@ class MyApp extends StatelessWidget {
             fontSize: 13,
           ),
         ),
-        */
         elevatedButtonTheme: ElevatedButtonThemeData(
           style: ElevatedButton.styleFrom(
             backgroundColor: const Color(0xFF0F88D5),
@@ -590,67 +586,6 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       ),
     );
   }
-
-  /*
-  void _openCompanyProfileFullScreen(BuildContext context) {
-    const assetPath = 'assets/company_profile.pdf';
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) {
-          if (kIsWeb) {
-            final webController = pdfrx.PdfViewerController();
-            return Scaffold(
-              backgroundColor: Colors.black,
-              appBar: AppBar(
-                backgroundColor: Colors.black,
-                elevation: 0,
-                iconTheme: const IconThemeData(color: Colors.white),
-                title: const Text(
-                  'Company Profile',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-              body: SafeArea(
-                child: pdfrx.PdfViewer.asset(
-                  assetPath,
-                  controller: webController,
-                  params: _companyProfilePdfrxParams(),
-                ),
-              ),
-            );
-          }
-          return Scaffold(
-            backgroundColor: Colors.black,
-            appBar: AppBar(
-              backgroundColor: Colors.black,
-              elevation: 0,
-              iconTheme: const IconThemeData(color: Colors.white),
-              title: const Text(
-                'Company Profile',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ),
-            body: SafeArea(
-              child: SfPdfViewer.asset(
-                assetPath,
-                canShowPaginationDialog: false,
-                canShowScrollHead: true,
-                canShowScrollStatus: true,
-                interactionMode: PdfInteractionMode.pan,
-              ),
-            ),
-          );
-        },
-      ),
-    );
-  }
-  */
 
   void _onComputeTabChanged() {
     if (_computeTabIndex != _computeTabController.index &&
@@ -5561,7 +5496,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     );
     final chunks = <_HermosaKbChunk>[];
     for (final page in document.pages) {
-      final pageText = await page.loadStructuredText();
+      final pageText = await page.loadText();
       final fullText = pageText.fullText.trim();
       if (fullText.isEmpty) continue;
       final pageChunks = _splitHermosaText(fullText, maxChunkLength: 700);
@@ -5935,24 +5870,10 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       backgroundColor: Colors.white,
       minScale: 1.0,
       maxScale: 4.0,
-      /*
-      calculateInitialZoom: (
-            // _, __, ___, ____
-            ) =>
-          _faqZoomLevel.clamp(1.0, 4.0).toDouble(),
-      */
       onViewerReady: (document, controller) {
         if (!mounted) return;
         setState(() => _faqZoomLevel = controller.currentZoom);
       },
-    );
-  }
-
-  pdfrx.PdfViewerParams _companyProfilePdfrxParams() {
-    return const pdfrx.PdfViewerParams(
-      backgroundColor: Colors.white,
-      minScale: 1.0,
-      maxScale: 4.0,
     );
   }
 
