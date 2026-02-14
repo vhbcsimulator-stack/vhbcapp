@@ -5,7 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'dart:math';
 import 'dart:convert';
-import 'package:webview_flutter/webview_flutter.dart';
+
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:youtube_player_flutter/youtube_player_flutter.dart' as ypf;
@@ -3501,33 +3501,12 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                     // Prevents the inline map from capturing taps that try to open an intent.
                     child: kIsWeb
                         ? buildMapEmbed(mapEmbedUrl)
-                        : Builder(
-                            builder: (_) {
-                              final controller = WebViewController();
-                              controller.setJavaScriptMode(
-                                JavaScriptMode.unrestricted,
-                              );
-                              controller.loadHtmlString('''
-                            <html>
-                              <head>
-                                <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
-                                <style>
-                                  html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; }
-                                  iframe { border: 0; width: 100%; height: 100%; pointer-events: none; }
-                                </style>
-                              </head>
-                              <body>
-                                <iframe
-                                  src="$mapEmbedUrl"
-                                  allowfullscreen
-                                  loading="lazy"
-                                  referrerpolicy="no-referrer-when-downgrade">
-                                </iframe>
-                              </body>
-                            </html>
-                            ''');
-                              return WebViewWidget(controller: controller);
-                            },
+                        : const Center(
+                            child: Text(
+                              'Map view disabled for iOS build compatibility',
+                              style: TextStyle(color: Colors.grey),
+                              textAlign: TextAlign.center,
+                            ),
                           ),
                   ),
                 ),
@@ -3629,28 +3608,13 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           ),
           body: Builder(
             builder: (_) {
-              final controller = WebViewController();
-              controller.setJavaScriptMode(JavaScriptMode.unrestricted);
-              controller.loadHtmlString('''
-                <html>
-                  <head>
-                    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
-                    <style>
-                      html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; }
-                      iframe { border: 0; width: 100%; height: 100%; }
-                    </style>
-                  </head>
-                  <body>
-                    <iframe
-                      src="$mapEmbedUrl"
-                      allowfullscreen
-                      loading="lazy"
-                      referrerpolicy="no-referrer-when-downgrade">
-                    </iframe>
-                  </body>
-                </html>
-                ''');
-              return WebViewWidget(controller: controller);
+              return const Center(
+                child: Text(
+                  'Map view disabled for iOS build compatibility',
+                  style: TextStyle(color: Colors.grey),
+                  textAlign: TextAlign.center,
+                ),
+              );
             },
           ),
         ),
