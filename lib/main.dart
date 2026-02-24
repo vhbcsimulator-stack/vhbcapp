@@ -2477,7 +2477,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                                                   DropdownButtonFormField<
                                                     String
                                                   >(
-                                                    initialValue: _selectedView,
+                                                    value: _selectedView,
                                                     items:
                                                         _msccViewOptions
                                                             .map(
