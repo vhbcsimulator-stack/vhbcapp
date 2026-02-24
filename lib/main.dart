@@ -2571,8 +2571,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                                                   DropdownButtonFormField<
                                                     String
                                                   >(
-                                                    initialValue:
-                                                        _selectedEndUnit,
+                                                    value: _selectedEndUnit,
                                                     items:
                                                         _msccEndUnitOptions
                                                             .map(
@@ -2662,8 +2661,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                                                   DropdownButtonFormField<
                                                     String
                                                   >(
-                                                    initialValue:
-                                                        _selectedFurnish,
+                                                    value: _selectedFurnish,
                                                     items:
                                                         _msccFurnishOptions
                                                             .map(
