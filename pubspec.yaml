@@ -52,7 +52,7 @@ dependencies:
   webview_flutter: ^4.8.0
   webview_flutter_web: ^0.2.2
   youtube_player_iframe: ^5.1.2
-  syncfusion_flutter_pdfviewer: ^32.1.24
+  syncfusion_flutter_pdfviewer: ^31.1.19
   http: ^1.2.2
   pdfrx: ^1.0.101
   flutter_svg: ^2.0.10
