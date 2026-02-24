@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
+
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 // import 'package:webview_flutter_web/webview_flutter_web.dart';
@@ -219,13 +220,14 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         builder: (_) {
           return StatefulBuilder(
             builder: (context, setState) {
-              int currentIndex = controller.hasClients
-                  ? controller.page?.round() ?? initialPage
-                  : initialPage;
+              int currentIndex =
+                  controller.hasClients
+                      ? controller.page?.round() ?? initialPage
+                      : initialPage;
               if (currentIndex != activeIndex) {
                 activeIndex = currentIndex;
-                isZoomed = transformationControllers[activeIndex]
-                        .value
+                isZoomed =
+                    transformationControllers[activeIndex].value
                         .getMaxScaleOnAxis() >
                     1.01;
               }
@@ -250,19 +252,21 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                       color: Colors.white,
                       onSelected: (value) {
                         if (value == 'download') {
-                          final name = captions != null &&
-                                  captions.length == images.length
-                              ? captions[currentIndex]
-                              : 'image';
+                          final name =
+                              captions != null &&
+                                      captions.length == images.length
+                                  ? captions[currentIndex]
+                                  : 'image';
                           _downloadImage(context, images[currentIndex], name);
                         }
                       },
-                      itemBuilder: (_) => const [
-                        PopupMenuItem(
-                          value: 'download',
-                          child: Text('Download'),
-                        ),
-                      ],
+                      itemBuilder:
+                          (_) => const [
+                            PopupMenuItem(
+                              value: 'download',
+                              child: Text('Download'),
+                            ),
+                          ],
                     ),
                   ],
                 ),
@@ -271,15 +275,16 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                   onPageChanged: (idx) {
                     setState(() {
                       activeIndex = idx;
-                      isZoomed = transformationControllers[activeIndex]
-                              .value
+                      isZoomed =
+                          transformationControllers[activeIndex].value
                               .getMaxScaleOnAxis() >
                           1.01;
                     });
                   },
-                  physics: isZoomed
-                      ? const NeverScrollableScrollPhysics()
-                      : const PageScrollPhysics(),
+                  physics:
+                      isZoomed
+                          ? const NeverScrollableScrollPhysics()
+                          : const PageScrollPhysics(),
                   itemCount: images.length,
                   itemBuilder: (context, index) {
                     final url = images[index];
@@ -300,10 +305,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                               if (!mounted) return;
                               if (index == activeIndex) {
                                 final nowZoomed =
-                                    transformationControllers[index]
-                                            .value
-                                            .getMaxScaleOnAxis() >
-                                        1.01;
+                                    transformationControllers[index].value
+                                        .getMaxScaleOnAxis() >
+                                    1.01;
                                 if (nowZoomed != isZoomed) {
                                   setState(() => isZoomed = nowZoomed);
                                 }
@@ -397,10 +401,10 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   ];
   final List<String> _msccEndUnitOptions = const ['Yes', 'No'];
   List<String> get _msccFurnishOptions => const [
-        'Semi Finished',
-        'Bare',
-        'Fully Finished',
-      ];
+    'Semi Finished',
+    'Bare',
+    'Fully Finished',
+  ];
   final List<int> _defaultDownpaymentOptions = const [0, 10, 30, 50, 100];
   final List<int> _msccDownpaymentOptions = const [30, 50, 100];
   late List<String> _phaseOptions = List.from(_defaultPhases);
@@ -458,8 +462,10 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       parent: _homeAnimController,
       curve: const Interval(0.25, 0.55, curve: Curves.easeOut),
     );
-    _heroTextSlide =
-        Tween<Offset>(begin: const Offset(0, -0.25), end: Offset.zero).animate(
+    _heroTextSlide = Tween<Offset>(
+      begin: const Offset(0, -0.25),
+      end: Offset.zero,
+    ).animate(
       CurvedAnimation(
         parent: _homeAnimController,
         curve: const Interval(0.25, 0.55, curve: Curves.easeOut),
@@ -538,9 +544,10 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     return Scaffold(
-      appBar: _currentIndex <= 5
-          ? null
-          : AppBar(title: Text(_titles[_currentIndex]), centerTitle: true),
+      appBar:
+          _currentIndex <= 5
+              ? null
+              : AppBar(title: Text(_titles[_currentIndex]), centerTitle: true),
       body: SafeArea(child: _buildBody()),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _currentIndex,
@@ -718,11 +725,12 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           .select('image_link,project_name')
           .eq('project_name', project);
 
-      final dataList = response is List
-          ? response
-          : (response is Map && response['data'] is List
-              ? response['data'] as List<dynamic>
-              : <dynamic>[]);
+      final dataList =
+          response is List
+              ? response
+              : (response is Map && response['data'] is List
+                  ? response['data'] as List<dynamic>
+                  : <dynamic>[]);
 
       final images = <String>[];
       for (final item in dataList) {
@@ -732,7 +740,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
             projectName.toUpperCase() != project.toUpperCase()) {
           continue;
         }
-        final imageValue = item['image_link'] ??
+        final imageValue =
+            item['image_link'] ??
             item['imageLink'] ??
             item['image_url'] ??
             item['image_URL'];
@@ -773,11 +782,12 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           .select('image_link,project_name')
           .eq('project_name', project);
 
-      final dataList = response is List
-          ? response
-          : (response is Map && response['data'] is List
-              ? response['data'] as List<dynamic>
-              : <dynamic>[]);
+      final dataList =
+          response is List
+              ? response
+              : (response is Map && response['data'] is List
+                  ? response['data'] as List<dynamic>
+                  : <dynamic>[]);
 
       final images = <String>[];
       for (final item in dataList) {
@@ -787,7 +797,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
             projectName.toUpperCase() != project.toUpperCase()) {
           continue;
         }
-        final imageValue = item['image_link'] ??
+        final imageValue =
+            item['image_link'] ??
             item['imageLink'] ??
             item['image_url'] ??
             item['image_URL'];
@@ -841,11 +852,12 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           .select('link,title,project_name')
           .eq('project_name', project);
 
-      final dataList = response is List
-          ? response
-          : (response is Map && response['data'] is List
-              ? response['data'] as List<dynamic>
-              : <dynamic>[]);
+      final dataList =
+          response is List
+              ? response
+              : (response is Map && response['data'] is List
+                  ? response['data'] as List<dynamic>
+                  : <dynamic>[]);
 
       final videos = <_YoutubeVideoItem>[];
       for (final item in dataList) {
@@ -856,11 +868,12 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           continue;
         }
 
-        final rawLink = (item['link'] ??
-                item['url'] ??
-                item['video_link'] ??
-                item['videoUrl'])
-            ?.toString();
+        final rawLink =
+            (item['link'] ??
+                    item['url'] ??
+                    item['video_link'] ??
+                    item['videoUrl'])
+                ?.toString();
         if (rawLink == null || rawLink.trim().isEmpty) continue;
         final videoId = _extractYoutubeVideoId(rawLink);
         if (videoId == null) continue;
@@ -904,11 +917,12 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           .select('title,content,created_at')
           .order('created_at', ascending: false);
 
-      final dataList = response is List
-          ? response
-          : (response is Map && response['data'] is List
-              ? response['data'] as List<dynamic>
-              : <dynamic>[]);
+      final dataList =
+          response is List
+              ? response
+              : (response is Map && response['data'] is List
+                  ? response['data'] as List<dynamic>
+                  : <dynamic>[]);
 
       final announcements = <_AnnouncementItem>[];
       for (final item in dataList) {
@@ -965,11 +979,13 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
     await _localNotifications
         .resolvePlatformSpecificImplementation<
-            AndroidFlutterLocalNotificationsPlugin>()
+          AndroidFlutterLocalNotificationsPlugin
+        >()
         ?.requestNotificationsPermission();
     await _localNotifications
         .resolvePlatformSpecificImplementation<
-            IOSFlutterLocalNotificationsPlugin>()
+          IOSFlutterLocalNotificationsPlugin
+        >()
         ?.requestPermissions(alert: true, badge: true, sound: true);
 
     _notificationsInitialized = true;
@@ -1059,18 +1075,20 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         width: width,
         height: height,
         fit: fit,
-        placeholderBuilder: (context) => Container(
-          height: height,
-          width: width,
-          color: const Color(0xFFF4F7FB),
-          alignment: Alignment.center,
-          child: placeholder ??
-              const SizedBox(
-                width: 20,
-                height: 20,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              ),
-        ),
+        placeholderBuilder:
+            (context) => Container(
+              height: height,
+              width: width,
+              color: const Color(0xFFF4F7FB),
+              alignment: Alignment.center,
+              child:
+                  placeholder ??
+                  const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+            ),
       );
     }
 
@@ -1079,14 +1097,15 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     final effectiveWidth =
         (width != null && width.isFinite ? width : mediaQuery.size.width);
 
-    final optimizedUrl = allowOptimization
-        ? _optimizedImageUrl(
-            normalizedUrl,
-            logicalWidth: effectiveWidth,
-            logicalHeight: height,
-            devicePixelRatio: dpr,
-          )
-        : normalizedUrl;
+    final optimizedUrl =
+        allowOptimization
+            ? _optimizedImageUrl(
+              normalizedUrl,
+              logicalWidth: effectiveWidth,
+              logicalHeight: height,
+              devicePixelRatio: dpr,
+            )
+            : normalizedUrl;
 
     final provider = NetworkImage(optimizedUrl);
     bool evicted = false;
@@ -1111,7 +1130,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           width: width,
           color: const Color(0xFFF4F7FB),
           alignment: Alignment.center,
-          child: placeholder ??
+          child:
+              placeholder ??
               const SizedBox(
                 width: 20,
                 height: 20,
@@ -1138,7 +1158,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           width: width,
           color: const Color(0xFFF4F7FB),
           alignment: Alignment.center,
-          child: error ??
+          child:
+              error ??
               const Icon(
                 Icons.broken_image,
                 color: Color(0xFF6C7A89),
@@ -1154,7 +1175,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     double? logicalHeight,
     double devicePixelRatio = 2.0,
   }) {
-    final baseWidth = logicalWidth ??
+    final baseWidth =
+        logicalWidth ??
         (logicalHeight != null
             ? logicalHeight * 1.2
             : 600); // rough fallback to avoid huge downloads
@@ -1194,12 +1216,13 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       logicalHeight: logicalHeight,
       devicePixelRatio: devicePixelRatio,
     );
-    final targetHeightPx = logicalHeight != null
-        ? _targetCacheWidthPx(
-            logicalWidth: logicalHeight,
-            devicePixelRatio: devicePixelRatio,
-          )
-        : null;
+    final targetHeightPx =
+        logicalHeight != null
+            ? _targetCacheWidthPx(
+              logicalWidth: logicalHeight,
+              devicePixelRatio: devicePixelRatio,
+            )
+            : null;
 
     final params = Map<String, String>.from(uri.queryParameters);
     params.putIfAbsent('format', () => 'webp');
@@ -1209,12 +1232,13 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       params['height'] = '$targetHeightPx';
     }
 
-    final renderPath = isRenderPath
-        ? uri.path
-        : uri.path.replaceFirst(
-            publicPrefix,
-            '/storage/v1/render/image/public/',
-          );
+    final renderPath =
+        isRenderPath
+            ? uri.path
+            : uri.path.replaceFirst(
+              publicPrefix,
+              '/storage/v1/render/image/public/',
+            );
     final optimizedUri = uri.replace(path: renderPath, queryParameters: params);
     return optimizedUri.toString();
   }
@@ -1254,16 +1278,17 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           '${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}_${now.hour.toString().padLeft(2, '0')}${now.minute.toString().padLeft(2, '0')}${now.second.toString().padLeft(2, '0')}';
       final fileName = '${sanitizedTitle}_$timestamp.jpg';
 
-      final savedPath = kIsWeb
-          ? await saveUrlToDownloads(url, fileName)
-          : await () async {
-              final uri = Uri.parse(url);
-              final byteData = await NetworkAssetBundle(
-                uri,
-              ).load(uri.toString());
-              final bytes = byteData.buffer.asUint8List();
-              return saveBytesToDownloads(bytes, fileName);
-            }();
+      final savedPath =
+          kIsWeb
+              ? await saveUrlToDownloads(url, fileName)
+              : await () async {
+                final uri = Uri.parse(url);
+                final byteData = await NetworkAssetBundle(
+                  uri,
+                ).load(uri.toString());
+                final bytes = byteData.buffer.asUint8List();
+                return saveBytesToDownloads(bytes, fileName);
+              }();
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -1301,11 +1326,12 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           .eq('project', project)
           .order('Phase');
 
-      final dataList = response is List
-          ? response
-          : (response is Map && response['data'] is List
-              ? response['data'] as List<dynamic>
-              : <dynamic>[]);
+      final dataList =
+          response is List
+              ? response
+              : (response is Map && response['data'] is List
+                  ? response['data'] as List<dynamic>
+                  : <dynamic>[]);
 
       if (project == 'ERHD') {
         String? imageUrl;
@@ -1461,7 +1487,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
         final imageUrl = imageValue?.toString();
         final isCommercial = normalizedType == 'commercial';
-        final isResidential = normalizedType == 'residential' ||
+        final isResidential =
+            normalizedType == 'residential' ||
             normalizedType == null ||
             normalizedType.isEmpty;
 
@@ -1596,7 +1623,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     if (monthlyRate == 0) {
       return balance / months;
     }
-    final factor = monthlyRate *
+    final factor =
+        monthlyRate *
         (pow(1 + monthlyRate, months)) /
         (pow(1 + monthlyRate, months) - 1);
     return balance * factor;
@@ -1708,11 +1736,12 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     try {
       final dynamic response =
           await Supabase.instance.client.from('mscc_price').select();
-      final dataList = response is List
-          ? response
-          : (response is Map && response['data'] is List
-              ? response['data'] as List<dynamic>
-              : <dynamic>[]);
+      final dataList =
+          response is List
+              ? response
+              : (response is Map && response['data'] is List
+                  ? response['data'] as List<dynamic>
+                  : <dynamic>[]);
 
       Map<String, dynamic>? selectedRow;
       final normalizedUnit = _normalizeKey(_selectedLotCategory);
@@ -1749,11 +1778,12 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
             _normalizeKey(endUnitValue) != normalizedEndUnit) {
           matches = false;
         }
-        final furnishValue = (row['furnish'] ??
-                row['furnish_type'] ??
-                row['type_of_furnish'] ??
-                row['furnishType'])
-            ?.toString();
+        final furnishValue =
+            (row['furnish'] ??
+                    row['furnish_type'] ??
+                    row['type_of_furnish'] ??
+                    row['furnishType'])
+                ?.toString();
         if (furnishValue != null &&
             _normalizeKey(furnishValue) != normalizedFurnish) {
           matches = false;
@@ -1893,13 +1923,17 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
     try {
       final tableName = isMvProject ? 'mvlc_price' : 'erhd_price';
-      final response = isMvProject
-          ? await Supabase.instance.client
-              .from(tableName)
-              .select()
-              .eq('phase', phaseNumber)
-              .limit(1)
-          : await Supabase.instance.client.from(tableName).select().limit(1);
+      final response =
+          isMvProject
+              ? await Supabase.instance.client
+                  .from(tableName)
+                  .select()
+                  .eq('phase', phaseNumber)
+                  .limit(1)
+              : await Supabase.instance.client
+                  .from(tableName)
+                  .select()
+                  .limit(1);
 
       final dataList = response as List<dynamic>? ?? [];
       final data =
@@ -1919,9 +1953,10 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       }
 
       final priceValue = data[categoryKey];
-      final price = priceValue is num
-          ? priceValue.toDouble()
-          : double.tryParse(priceValue.toString());
+      final price =
+          priceValue is num
+              ? priceValue.toDouble()
+              : double.tryParse(priceValue.toString());
       if (price == null) {
         setState(() {
           _tcpAmount = 0;
@@ -1963,13 +1998,15 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         final bottomInset = MediaQuery.of(context).padding.bottom;
         // Reserve space for the bottom nav so the card never tucks underneath it.
         const navPadding = kBottomNavigationBarHeight + 8;
-        final double safeHeight = (constraints.maxHeight - bottomInset)
-            .clamp(0.0, double.infinity)
-            .toDouble();
+        final double safeHeight =
+            (constraints.maxHeight - bottomInset)
+                .clamp(0.0, double.infinity)
+                .toDouble();
         final double heroHeight = safeHeight * 0.20;
-        final double cardHeight = (safeHeight - heroHeight - navPadding)
-            .clamp(320.0, safeHeight)
-            .toDouble();
+        final double cardHeight =
+            (safeHeight - heroHeight - navPadding)
+                .clamp(320.0, safeHeight)
+                .toDouble();
         final double decorLarge = (constraints.maxWidth * 0.28).clamp(
           140.0,
           220.0,
@@ -1984,12 +2021,14 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         );
         final downpaymentValue = _downpaymentOptions[_downpaymentIndex.round()];
         final isZeroDown = downpaymentValue == 0;
-        final maxPaymentYears = _isPaymentYearsEnabled
-            ? (isMsccProject ? 10.0 : (isZeroDown ? 7.0 : 5.0))
-            : 1.0;
-        final paymentYearsDivisions = _isPaymentYearsEnabled
-            ? (isMsccProject ? 9 : (isZeroDown ? 6 : 4))
-            : 1;
+        final maxPaymentYears =
+            _isPaymentYearsEnabled
+                ? (isMsccProject ? 10.0 : (isZeroDown ? 7.0 : 5.0))
+                : 1.0;
+        final paymentYearsDivisions =
+            _isPaymentYearsEnabled
+                ? (isMsccProject ? 9 : (isZeroDown ? 6 : 4))
+                : 1;
 
         return Stack(
           children: [
@@ -2186,8 +2225,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                                       controller: _lotSizeController,
                                       keyboardType:
                                           const TextInputType.numberWithOptions(
-                                        decimal: true,
-                                      ),
+                                            decimal: true,
+                                          ),
                                       onChanged: _onLotSizeChanged,
                                       inputFormatters: [
                                         FilteringTextInputFormatter.allow(
@@ -2198,9 +2237,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                                         hintText: 'Enter lot size',
                                         contentPadding:
                                             const EdgeInsets.symmetric(
-                                          horizontal: 14,
-                                          vertical: 12,
-                                        ),
+                                              horizontal: 14,
+                                              vertical: 12,
+                                            ),
                                         filled: true,
                                         fillColor: const Color(0xFFF4F7FB),
                                         border: OutlineInputBorder(
@@ -2257,20 +2296,22 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                                       ),
                                       child: Slider(
                                         min: 0,
-                                        max: (_phaseOptions.length - 1)
-                                            .toDouble(),
-                                        divisions: _phaseOptions.length > 1
-                                            ? _phaseOptions.length - 1
-                                            : 1,
+                                        max:
+                                            (_phaseOptions.length - 1)
+                                                .toDouble(),
+                                        divisions:
+                                            _phaseOptions.length > 1
+                                                ? _phaseOptions.length - 1
+                                                : 1,
                                         value: _phaseIndex.clamp(
                                           0,
                                           (_phaseOptions.length - 1).toDouble(),
                                         ),
                                         onChanged: (val) {
                                           final idx = val.round().clamp(
-                                                0,
-                                                _phaseOptions.length - 1,
-                                              );
+                                            0,
+                                            _phaseOptions.length - 1,
+                                          );
                                           setState(() {
                                             _phaseIndex = idx.toDouble();
                                             _selectedPhase = _phaseOptions[idx];
@@ -2315,11 +2356,13 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                                     ),
                                     child: Slider(
                                       min: 0,
-                                      max: (_lotCategoryOptions.length - 1)
-                                          .toDouble(),
-                                      divisions: _lotCategoryOptions.length > 1
-                                          ? _lotCategoryOptions.length - 1
-                                          : 1,
+                                      max:
+                                          (_lotCategoryOptions.length - 1)
+                                              .toDouble(),
+                                      divisions:
+                                          _lotCategoryOptions.length > 1
+                                              ? _lotCategoryOptions.length - 1
+                                              : 1,
                                       value: _lotCategoryIndex.clamp(
                                         0,
                                         (_lotCategoryOptions.length - 1)
@@ -2327,9 +2370,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                                       ),
                                       onChanged: (val) {
                                         final idx = val.round().clamp(
-                                              0,
-                                              _lotCategoryOptions.length - 1,
-                                            );
+                                          0,
+                                          _lotCategoryOptions.length - 1,
+                                        );
                                         setState(() {
                                           _lotCategoryIndex = idx.toDouble();
                                           _selectedLotCategory =
@@ -2373,11 +2416,13 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                                       ),
                                       child: Slider(
                                         min: 0,
-                                        max: (_msccFloorLevels.length - 1)
-                                            .toDouble(),
-                                        divisions: _msccFloorLevels.length > 1
-                                            ? _msccFloorLevels.length - 1
-                                            : 1,
+                                        max:
+                                            (_msccFloorLevels.length - 1)
+                                                .toDouble(),
+                                        divisions:
+                                            _msccFloorLevels.length > 1
+                                                ? _msccFloorLevels.length - 1
+                                                : 1,
                                         value: _floorLevelIndex.clamp(
                                           0,
                                           (_msccFloorLevels.length - 1)
@@ -2385,9 +2430,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                                         ),
                                         onChanged: (val) {
                                           final idx = val.round().clamp(
-                                                0,
-                                                _msccFloorLevels.length - 1,
-                                              );
+                                            0,
+                                            _msccFloorLevels.length - 1,
+                                          );
                                           setState(() {
                                             _floorLevelIndex = idx.toDouble();
                                             _selectedFloorLevel =
@@ -2430,24 +2475,29 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                                                   ),
                                                   const SizedBox(height: 8),
                                                   DropdownButtonFormField<
-                                                      String>(
+                                                    String
+                                                  >(
                                                     initialValue: _selectedView,
-                                                    items: _msccViewOptions
-                                                        .map(
-                                                          (view) =>
-                                                              DropdownMenuItem<
-                                                                  String>(
-                                                            value: view,
-                                                            child: Text(
-                                                              view,
-                                                              style:
-                                                                  const TextStyle(
-                                                                fontSize: 14,
+                                                    items:
+                                                        _msccViewOptions
+                                                            .map(
+                                                              (
+                                                                view,
+                                                              ) => DropdownMenuItem<
+                                                                String
+                                                              >(
+                                                                value: view,
+                                                                child: Text(
+                                                                  view,
+                                                                  style:
+                                                                      const TextStyle(
+                                                                        fontSize:
+                                                                            14,
+                                                                      ),
+                                                                ),
                                                               ),
-                                                            ),
-                                                          ),
-                                                        )
-                                                        .toList(),
+                                                            )
+                                                            .toList(),
                                                     onChanged: (val) {
                                                       if (val == null) return;
                                                       setState(() {
@@ -2460,43 +2510,39 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                                                     },
                                                     decoration: InputDecoration(
                                                       contentPadding:
-                                                          const EdgeInsets
-                                                              .symmetric(
-                                                        horizontal: 14,
-                                                        vertical: 12,
-                                                      ),
+                                                          const EdgeInsets.symmetric(
+                                                            horizontal: 14,
+                                                            vertical: 12,
+                                                          ),
                                                       filled: true,
                                                       fillColor: const Color(
                                                         0xFFF4F7FB,
                                                       ),
-                                                      border:
-                                                          OutlineInputBorder(
+                                                      border: OutlineInputBorder(
                                                         borderRadius:
-                                                            BorderRadius
-                                                                .circular(
-                                                          12,
-                                                        ),
+                                                            BorderRadius.circular(
+                                                              12,
+                                                            ),
                                                         borderSide:
                                                             const BorderSide(
-                                                          color: Color(
-                                                            0xFFE4E9F1,
-                                                          ),
-                                                        ),
+                                                              color: Color(
+                                                                0xFFE4E9F1,
+                                                              ),
+                                                            ),
                                                       ),
                                                       enabledBorder:
                                                           OutlineInputBorder(
-                                                        borderRadius:
-                                                            BorderRadius
-                                                                .circular(
-                                                          12,
-                                                        ),
-                                                        borderSide:
-                                                            const BorderSide(
-                                                          color: Color(
-                                                            0xFFE4E9F1,
+                                                            borderRadius:
+                                                                BorderRadius.circular(
+                                                                  12,
+                                                                ),
+                                                            borderSide:
+                                                                const BorderSide(
+                                                                  color: Color(
+                                                                    0xFFE4E9F1,
+                                                                  ),
+                                                                ),
                                                           ),
-                                                        ),
-                                                      ),
                                                     ),
                                                     icon: const Icon(
                                                       Icons
@@ -2523,25 +2569,30 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                                                   ),
                                                   const SizedBox(height: 8),
                                                   DropdownButtonFormField<
-                                                      String>(
+                                                    String
+                                                  >(
                                                     initialValue:
                                                         _selectedEndUnit,
-                                                    items: _msccEndUnitOptions
-                                                        .map(
-                                                          (value) =>
-                                                              DropdownMenuItem<
-                                                                  String>(
-                                                            value: value,
-                                                            child: Text(
-                                                              value,
-                                                              style:
-                                                                  const TextStyle(
-                                                                fontSize: 14,
+                                                    items:
+                                                        _msccEndUnitOptions
+                                                            .map(
+                                                              (
+                                                                value,
+                                                              ) => DropdownMenuItem<
+                                                                String
+                                                              >(
+                                                                value: value,
+                                                                child: Text(
+                                                                  value,
+                                                                  style:
+                                                                      const TextStyle(
+                                                                        fontSize:
+                                                                            14,
+                                                                      ),
+                                                                ),
                                                               ),
-                                                            ),
-                                                          ),
-                                                        )
-                                                        .toList(),
+                                                            )
+                                                            .toList(),
                                                     onChanged: (val) {
                                                       if (val == null) return;
                                                       setState(() {
@@ -2550,43 +2601,39 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                                                     },
                                                     decoration: InputDecoration(
                                                       contentPadding:
-                                                          const EdgeInsets
-                                                              .symmetric(
-                                                        horizontal: 14,
-                                                        vertical: 12,
-                                                      ),
+                                                          const EdgeInsets.symmetric(
+                                                            horizontal: 14,
+                                                            vertical: 12,
+                                                          ),
                                                       filled: true,
                                                       fillColor: const Color(
                                                         0xFFF4F7FB,
                                                       ),
-                                                      border:
-                                                          OutlineInputBorder(
+                                                      border: OutlineInputBorder(
                                                         borderRadius:
-                                                            BorderRadius
-                                                                .circular(
-                                                          12,
-                                                        ),
+                                                            BorderRadius.circular(
+                                                              12,
+                                                            ),
                                                         borderSide:
                                                             const BorderSide(
-                                                          color: Color(
-                                                            0xFFE4E9F1,
-                                                          ),
-                                                        ),
+                                                              color: Color(
+                                                                0xFFE4E9F1,
+                                                              ),
+                                                            ),
                                                       ),
                                                       enabledBorder:
                                                           OutlineInputBorder(
-                                                        borderRadius:
-                                                            BorderRadius
-                                                                .circular(
-                                                          12,
-                                                        ),
-                                                        borderSide:
-                                                            const BorderSide(
-                                                          color: Color(
-                                                            0xFFE4E9F1,
+                                                            borderRadius:
+                                                                BorderRadius.circular(
+                                                                  12,
+                                                                ),
+                                                            borderSide:
+                                                                const BorderSide(
+                                                                  color: Color(
+                                                                    0xFFE4E9F1,
+                                                                  ),
+                                                                ),
                                                           ),
-                                                        ),
-                                                      ),
                                                     ),
                                                     icon: const Icon(
                                                       Icons
@@ -2613,25 +2660,30 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                                                   ),
                                                   const SizedBox(height: 8),
                                                   DropdownButtonFormField<
-                                                      String>(
+                                                    String
+                                                  >(
                                                     initialValue:
                                                         _selectedFurnish,
-                                                    items: _msccFurnishOptions
-                                                        .map(
-                                                          (value) =>
-                                                              DropdownMenuItem<
-                                                                  String>(
-                                                            value: value,
-                                                            child: Text(
-                                                              value,
-                                                              style:
-                                                                  const TextStyle(
-                                                                fontSize: 14,
+                                                    items:
+                                                        _msccFurnishOptions
+                                                            .map(
+                                                              (
+                                                                value,
+                                                              ) => DropdownMenuItem<
+                                                                String
+                                                              >(
+                                                                value: value,
+                                                                child: Text(
+                                                                  value,
+                                                                  style:
+                                                                      const TextStyle(
+                                                                        fontSize:
+                                                                            14,
+                                                                      ),
+                                                                ),
                                                               ),
-                                                            ),
-                                                          ),
-                                                        )
-                                                        .toList(),
+                                                            )
+                                                            .toList(),
                                                     onChanged: (val) {
                                                       if (val == null) return;
                                                       setState(() {
@@ -2640,43 +2692,39 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                                                     },
                                                     decoration: InputDecoration(
                                                       contentPadding:
-                                                          const EdgeInsets
-                                                              .symmetric(
-                                                        horizontal: 14,
-                                                        vertical: 12,
-                                                      ),
+                                                          const EdgeInsets.symmetric(
+                                                            horizontal: 14,
+                                                            vertical: 12,
+                                                          ),
                                                       filled: true,
                                                       fillColor: const Color(
                                                         0xFFF4F7FB,
                                                       ),
-                                                      border:
-                                                          OutlineInputBorder(
+                                                      border: OutlineInputBorder(
                                                         borderRadius:
-                                                            BorderRadius
-                                                                .circular(
-                                                          12,
-                                                        ),
+                                                            BorderRadius.circular(
+                                                              12,
+                                                            ),
                                                         borderSide:
                                                             const BorderSide(
-                                                          color: Color(
-                                                            0xFFE4E9F1,
-                                                          ),
-                                                        ),
+                                                              color: Color(
+                                                                0xFFE4E9F1,
+                                                              ),
+                                                            ),
                                                       ),
                                                       enabledBorder:
                                                           OutlineInputBorder(
-                                                        borderRadius:
-                                                            BorderRadius
-                                                                .circular(
-                                                          12,
-                                                        ),
-                                                        borderSide:
-                                                            const BorderSide(
-                                                          color: Color(
-                                                            0xFFE4E9F1,
+                                                            borderRadius:
+                                                                BorderRadius.circular(
+                                                                  12,
+                                                                ),
+                                                            borderSide:
+                                                                const BorderSide(
+                                                                  color: Color(
+                                                                    0xFFE4E9F1,
+                                                                  ),
+                                                                ),
                                                           ),
-                                                        ),
-                                                      ),
                                                     ),
                                                     icon: const Icon(
                                                       Icons
@@ -2725,8 +2773,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                                     ),
                                     child: Slider(
                                       min: 0,
-                                      max: (_downpaymentOptions.length - 1)
-                                          .toDouble(),
+                                      max:
+                                          (_downpaymentOptions.length - 1)
+                                              .toDouble(),
                                       divisions: _downpaymentOptions.length - 1,
                                       value: _downpaymentIndex,
                                       onChanged: (val) {
@@ -2777,11 +2826,12 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                                         1,
                                         maxPaymentYears,
                                       ),
-                                      onChanged: _isPaymentYearsEnabled
-                                          ? (val) => setState(
+                                      onChanged:
+                                          _isPaymentYearsEnabled
+                                              ? (val) => setState(
                                                 () => _paymentYears = val,
                                               )
-                                          : null,
+                                              : null,
                                     ),
                                   ),
                                   const SizedBox(height: 12),
@@ -2789,9 +2839,10 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                                   SizedBox(
                                     width: double.infinity,
                                     child: ElevatedButton(
-                                      onPressed: _isComputing
-                                          ? null
-                                          : _startComputation,
+                                      onPressed:
+                                          _isComputing
+                                              ? null
+                                              : _startComputation,
                                       style: ElevatedButton.styleFrom(
                                         backgroundColor: const Color(
                                           0xFF0F88D5,
@@ -2943,15 +2994,17 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                                       title:
                                           'Virtual Tour at ${_projects[_selectedProject]}',
                                       icon: Icons.vrpano_outlined,
-                                      onTap: () =>
-                                          setState(() => _currentIndex = 1),
+                                      onTap:
+                                          () =>
+                                              setState(() => _currentIndex = 1),
                                     );
                                     final secondCard = _exploreActionCard(
                                       title: 'Price Computation',
                                       icon:
                                           Icons.account_balance_wallet_outlined,
-                                      onTap: () =>
-                                          setState(() => _currentIndex = 3),
+                                      onTap:
+                                          () =>
+                                              setState(() => _currentIndex = 3),
                                     );
 
                                     return IntrinsicHeight(
@@ -3028,18 +3081,20 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                   duration: const Duration(milliseconds: 900),
                   switchInCurve: Curves.easeInOut,
                   switchOutCurve: Curves.easeInOut,
-                  transitionBuilder: (child, animation) =>
-                      FadeTransition(opacity: animation, child: child),
-                  child: imagePath != null
-                      ? SizedBox.expand(
-                          key: ValueKey(imagePath),
-                          child: Image.asset(
-                            imagePath,
-                            fit: BoxFit.cover,
-                            alignment: Alignment.center,
-                          ),
-                        )
-                      : const SizedBox.expand(key: ValueKey('no-image')),
+                  transitionBuilder:
+                      (child, animation) =>
+                          FadeTransition(opacity: animation, child: child),
+                  child:
+                      imagePath != null
+                          ? SizedBox.expand(
+                            key: ValueKey(imagePath),
+                            child: Image.asset(
+                              imagePath,
+                              fit: BoxFit.cover,
+                              alignment: Alignment.center,
+                            ),
+                          )
+                          : const SizedBox.expand(key: ValueKey('no-image')),
                 ),
               ),
               Positioned.fill(
@@ -3182,14 +3237,16 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                         vertical: 12,
                       ),
                       decoration: BoxDecoration(
-                        color: isSelected
-                            ? const Color(0xFF0F88D5)
-                            : const Color(0xFFF1F4F8),
+                        color:
+                            isSelected
+                                ? const Color(0xFF0F88D5)
+                                : const Color(0xFFF1F4F8),
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(
-                          color: isSelected
-                              ? const Color(0xFF0F88D5)
-                              : const Color(0xFFE3E7EC),
+                          color:
+                              isSelected
+                                  ? const Color(0xFF0F88D5)
+                                  : const Color(0xFFE3E7EC),
                           width: 1.2,
                         ),
                       ),
@@ -3199,18 +3256,20 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                           Icon(
                             Icons.apartment_rounded,
                             size: 18,
-                            color: isSelected
-                                ? Colors.white
-                                : const Color(0xFF6C7A89),
+                            color:
+                                isSelected
+                                    ? Colors.white
+                                    : const Color(0xFF6C7A89),
                           ),
                           const SizedBox(width: 8),
                           Text(
                             _projects[index],
                             style: TextStyle(
                               fontWeight: FontWeight.w700,
-                              color: isSelected
-                                  ? Colors.white
-                                  : const Color(0xFF3A4A5B),
+                              color:
+                                  isSelected
+                                      ? Colors.white
+                                      : const Color(0xFF3A4A5B),
                             ),
                           ),
                         ],
@@ -3344,9 +3403,10 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     const mvlcMsccCoords = '14.09219845872134,120.69419417143793';
     const erhdCoords = '14.190250081143637,120.83691884017821';
     final locationLabel = _projectLocations[_selectedProject];
-    final mapQuery = isMvOrMscc
-        ? '$mvlcMsccCoords (Mountain View Leisure Community)'
-        : isErhd
+    final mapQuery =
+        isMvOrMscc
+            ? '$mvlcMsccCoords (Mountain View Leisure Community)'
+            : isErhd
             ? '$erhdCoords (Eastwest Resorts Hub and Development)'
             : locationLabel;
     final mapEmbedUrl =
@@ -3360,11 +3420,14 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           color: Colors.transparent,
           child: InkWell(
             borderRadius: BorderRadius.circular(14),
-            onTap: () => _openMapFullScreen(
-              mapEmbedUrl,
-              mapOpenUrl,
-              isMvOrMscc ? 'Mountain View Leisure Community' : locationLabel,
-            ),
+            onTap:
+                () => _openMapFullScreen(
+                  mapEmbedUrl,
+                  mapOpenUrl,
+                  isMvOrMscc
+                      ? 'Mountain View Leisure Community'
+                      : locationLabel,
+                ),
             child: Stack(
               children: [
                 Container(
@@ -3377,15 +3440,16 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                   clipBehavior: Clip.hardEdge,
                   child: IgnorePointer(
                     // Prevents the inline map from capturing taps that try to open an intent.
-                    child: kIsWeb
-                        ? buildMapEmbed(mapEmbedUrl)
-                        : Builder(
-                            builder: (_) {
-                              final controller = WebViewController();
-                              controller.setJavaScriptMode(
-                                JavaScriptMode.unrestricted,
-                              );
-                              controller.loadHtmlString('''
+                    child:
+                        kIsWeb
+                            ? buildMapEmbed(mapEmbedUrl)
+                            : Builder(
+                              builder: (_) {
+                                final controller = WebViewController();
+                                controller.setJavaScriptMode(
+                                  JavaScriptMode.unrestricted,
+                                );
+                                controller.loadHtmlString('''
                             <html>
                               <head>
                                 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
@@ -3404,9 +3468,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                               </body>
                             </html>
                             ''');
-                              return WebViewWidget(controller: controller);
-                            },
-                          ),
+                                return WebViewWidget(controller: controller);
+                              },
+                            ),
                   ),
                 ),
                 Positioned(
@@ -3420,13 +3484,14 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                         Icons.fullscreen,
                         color: Color(0xFF2BB673),
                       ),
-                      onPressed: () => _openMapFullScreen(
-                        mapEmbedUrl,
-                        mapOpenUrl,
-                        isMvOrMscc
-                            ? 'Mountain View Leisure Community'
-                            : locationLabel,
-                      ),
+                      onPressed:
+                          () => _openMapFullScreen(
+                            mapEmbedUrl,
+                            mapOpenUrl,
+                            isMvOrMscc
+                                ? 'Mountain View Leisure Community'
+                                : locationLabel,
+                          ),
                     ),
                   ),
                 ),
@@ -3498,18 +3563,19 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     }
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => Scaffold(
-          appBar: AppBar(
-            title: Text(title),
-            backgroundColor: Colors.white,
-            foregroundColor: const Color(0xFF0F88D5),
-            elevation: 1,
-          ),
-          body: Builder(
-            builder: (_) {
-              final controller = WebViewController();
-              controller.setJavaScriptMode(JavaScriptMode.unrestricted);
-              controller.loadHtmlString('''
+        builder:
+            (_) => Scaffold(
+              appBar: AppBar(
+                title: Text(title),
+                backgroundColor: Colors.white,
+                foregroundColor: const Color(0xFF0F88D5),
+                elevation: 1,
+              ),
+              body: Builder(
+                builder: (_) {
+                  final controller = WebViewController();
+                  controller.setJavaScriptMode(JavaScriptMode.unrestricted);
+                  controller.loadHtmlString('''
                 <html>
                   <head>
                     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
@@ -3528,10 +3594,10 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                   </body>
                 </html>
                 ''');
-              return WebViewWidget(controller: controller);
-            },
-          ),
-        ),
+                  return WebViewWidget(controller: controller);
+                },
+              ),
+            ),
       ),
     );
   }
@@ -3616,8 +3682,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         );
       }
 
-      final commercialEntries = _salesMapCommercialImages.entries.toList()
-        ..sort((a, b) => a.key.compareTo(b.key));
+      final commercialEntries =
+          _salesMapCommercialImages.entries.toList()
+            ..sort((a, b) => a.key.compareTo(b.key));
 
       final maps = <Widget>[
         for (var i = 0; i < 3; i++)
@@ -3631,17 +3698,18 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           final width = constraints.maxWidth;
           final horizontalPadding = _pageHorizontalPadding(width);
           final maxWidth = _contentMaxWidth(width);
-          final wrappedMaps = maps
-              .map(
-                (card) => Align(
-                  alignment: Alignment.topCenter,
-                  child: ConstrainedBox(
-                    constraints: BoxConstraints(maxWidth: maxWidth),
-                    child: card,
-                  ),
-                ),
-              )
-              .toList();
+          final wrappedMaps =
+              maps
+                  .map(
+                    (card) => Align(
+                      alignment: Alignment.topCenter,
+                      child: ConstrainedBox(
+                        constraints: BoxConstraints(maxWidth: maxWidth),
+                        child: card,
+                      ),
+                    ),
+                  )
+                  .toList();
           return ListView(
             padding: EdgeInsets.fromLTRB(
               horizontalPadding,
@@ -3834,16 +3902,18 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     }
 
     final gallery = <_SalesMapGalleryItem>[];
-    final residentialEntries = _salesMapImages.entries.toList()
-      ..sort((a, b) => a.key.compareTo(b.key));
+    final residentialEntries =
+        _salesMapImages.entries.toList()
+          ..sort((a, b) => a.key.compareTo(b.key));
     gallery.addAll(
       residentialEntries.map(
         (entry) =>
             _SalesMapGalleryItem(title: 'Phase ${entry.key}', url: entry.value),
       ),
     );
-    final commercialEntries = _salesMapCommercialImages.entries.toList()
-      ..sort((a, b) => a.key.compareTo(b.key));
+    final commercialEntries =
+        _salesMapCommercialImages.entries.toList()
+          ..sort((a, b) => a.key.compareTo(b.key));
     gallery.addAll(
       commercialEntries.map(
         (entry) => _SalesMapGalleryItem(
@@ -3864,82 +3934,83 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     return LayoutBuilder(
       builder: (context, constraints) {
         final mediaHeight = _salesMapMediaHeight(constraints.maxWidth);
-        final content = imageUrl == null
-            ? Container(
-                height: mediaHeight,
-                alignment: Alignment.center,
-                decoration: const BoxDecoration(
-                  color: Color(0xFFF4F7FB),
-                  borderRadius: BorderRadius.vertical(
+        final content =
+            imageUrl == null
+                ? Container(
+                  height: mediaHeight,
+                  alignment: Alignment.center,
+                  decoration: const BoxDecoration(
+                    color: Color(0xFFF4F7FB),
+                    borderRadius: BorderRadius.vertical(
+                      bottom: Radius.circular(16),
+                    ),
+                  ),
+                  child: const Text(
+                    'No sales map available.',
+                    style: TextStyle(fontSize: 13, color: Color(0xFF6C7A89)),
+                  ),
+                )
+                : ClipRRect(
+                  borderRadius: const BorderRadius.vertical(
                     bottom: Radius.circular(16),
                   ),
-                ),
-                child: const Text(
-                  'No sales map available.',
-                  style: TextStyle(fontSize: 13, color: Color(0xFF6C7A89)),
-                ),
-              )
-            : ClipRRect(
-                borderRadius: const BorderRadius.vertical(
-                  bottom: Radius.circular(16),
-                ),
-                child: Stack(
-                  children: [
-                    Positioned.fill(
-                      child: _cachedNetworkImage(
-                        context,
-                        imageUrl,
-                        height: mediaHeight,
-                        width: constraints.maxWidth,
-                        fit: BoxFit.cover,
-                        error: const Text(
-                          'Failed to load map image.',
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: Color(0xFF6C7A89),
+                  child: Stack(
+                    children: [
+                      Positioned.fill(
+                        child: _cachedNetworkImage(
+                          context,
+                          imageUrl,
+                          height: mediaHeight,
+                          width: constraints.maxWidth,
+                          fit: BoxFit.cover,
+                          error: const Text(
+                            'Failed to load map image.',
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: Color(0xFF6C7A89),
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                    Positioned(
-                      top: 8,
-                      right: 8,
-                      child: Material(
-                        color: Colors.white70,
-                        shape: const CircleBorder(),
-                        child: IconButton(
-                          icon: const Icon(
-                            Icons.fullscreen,
-                            color: Color(0xFF2BB673),
+                      Positioned(
+                        top: 8,
+                        right: 8,
+                        child: Material(
+                          color: Colors.white70,
+                          shape: const CircleBorder(),
+                          child: IconButton(
+                            icon: const Icon(
+                              Icons.fullscreen,
+                              color: Color(0xFF2BB673),
+                            ),
+                            onPressed: () {
+                              List<String> urls;
+                              List<String>? captions;
+                              if (galleryImages != null &&
+                                  galleryImages.isNotEmpty) {
+                                urls = List<String>.from(galleryImages);
+                                captions = galleryCaptions;
+                              } else {
+                                final galleryItems = _salesMapGalleryItems();
+                                urls = galleryItems.map((e) => e.url).toList();
+                                captions =
+                                    galleryItems.map((e) => e.title).toList();
+                              }
+                              if (urls.isEmpty) return;
+                              final startIndex = urls.indexOf(imageUrl);
+                              _openImageGalleryFullScreen(
+                                context,
+                                urls,
+                                startIndex < 0 ? 0 : startIndex,
+                                captions: captions,
+                              );
+                            },
                           ),
-                          onPressed: () {
-                            List<String> urls;
-                            List<String>? captions;
-                            if (galleryImages != null &&
-                                galleryImages.isNotEmpty) {
-                              urls = List<String>.from(galleryImages);
-                              captions = galleryCaptions;
-                            } else {
-                              final galleryItems = _salesMapGalleryItems();
-                              urls = galleryItems.map((e) => e.url).toList();
-                              captions =
-                                  galleryItems.map((e) => e.title).toList();
-                            }
-                            if (urls.isEmpty) return;
-                            final startIndex = urls.indexOf(imageUrl);
-                            _openImageGalleryFullScreen(
-                              context,
-                              urls,
-                              startIndex < 0 ? 0 : startIndex,
-                              captions: captions,
-                            );
-                          },
                         ),
                       ),
-                    ),
-                  ],
-                ),
-              );
+                    ],
+                  ),
+                );
 
         return Container(
           margin: const EdgeInsets.only(bottom: 16),
@@ -3957,28 +4028,29 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           ),
           child: InkWell(
             borderRadius: BorderRadius.circular(16),
-            onTap: imageUrl != null
-                ? () {
-                    List<String> urls;
-                    List<String>? captions;
-                    if (galleryImages != null && galleryImages.isNotEmpty) {
-                      urls = List<String>.from(galleryImages);
-                      captions = galleryCaptions;
-                    } else {
-                      final galleryItems = _salesMapGalleryItems();
-                      urls = galleryItems.map((e) => e.url).toList();
-                      captions = galleryItems.map((e) => e.title).toList();
+            onTap:
+                imageUrl != null
+                    ? () {
+                      List<String> urls;
+                      List<String>? captions;
+                      if (galleryImages != null && galleryImages.isNotEmpty) {
+                        urls = List<String>.from(galleryImages);
+                        captions = galleryCaptions;
+                      } else {
+                        final galleryItems = _salesMapGalleryItems();
+                        urls = galleryItems.map((e) => e.url).toList();
+                        captions = galleryItems.map((e) => e.title).toList();
+                      }
+                      if (urls.isEmpty) return;
+                      final startIndex = urls.indexOf(imageUrl);
+                      _openImageGalleryFullScreen(
+                        context,
+                        urls,
+                        startIndex < 0 ? 0 : startIndex,
+                        captions: captions,
+                      );
                     }
-                    if (urls.isEmpty) return;
-                    final startIndex = urls.indexOf(imageUrl);
-                    _openImageGalleryFullScreen(
-                      context,
-                      urls,
-                      startIndex < 0 ? 0 : startIndex,
-                      captions: captions,
-                    );
-                  }
-                : null,
+                    : null,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -4275,11 +4347,12 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
               borderRadius: BorderRadius.circular(12),
               child: GestureDetector(
                 onTap: () {
-                  final captions = _projectDevImages
-                      .asMap()
-                      .entries
-                      .map((entry) => 'Media ${entry.key + 1}')
-                      .toList();
+                  final captions =
+                      _projectDevImages
+                          .asMap()
+                          .entries
+                          .map((entry) => 'Media ${entry.key + 1}')
+                          .toList();
                   _openImageGalleryFullScreen(
                     context,
                     _projectDevImages,
@@ -4402,11 +4475,12 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
               borderRadius: BorderRadius.circular(12),
               child: GestureDetector(
                 onTap: () {
-                  final captions = _futureDevImages
-                      .asMap()
-                      .entries
-                      .map((entry) => 'Future ${entry.key + 1}')
-                      .toList();
+                  final captions =
+                      _futureDevImages
+                          .asMap()
+                          .entries
+                          .map((entry) => 'Future ${entry.key + 1}')
+                          .toList();
                   _openImageGalleryFullScreen(
                     context,
                     _futureDevImages,
@@ -4487,24 +4561,30 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
             horizontalPadding,
             24,
           ),
-          children: videos.map((video) {
-            final externalUrl = video.originalLink.isNotEmpty
-                ? video.originalLink
-                : 'https://youtu.be/${video.id}';
-            return Align(
-              alignment: Alignment.topCenter,
-              child: ConstrainedBox(
-                constraints: BoxConstraints(maxWidth: maxWidth),
-                child: _buildVideoCard(
-                  title: video.title,
-                  videoId: video.id,
-                  externalUrl: externalUrl,
-                  onPlay: () =>
-                      _openVideoFullScreen(video.id, video.title, externalUrl),
-                ),
-              ),
-            );
-          }).toList(),
+          children:
+              videos.map((video) {
+                final externalUrl =
+                    video.originalLink.isNotEmpty
+                        ? video.originalLink
+                        : 'https://youtu.be/${video.id}';
+                return Align(
+                  alignment: Alignment.topCenter,
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(maxWidth: maxWidth),
+                    child: _buildVideoCard(
+                      title: video.title,
+                      videoId: video.id,
+                      externalUrl: externalUrl,
+                      onPlay:
+                          () => _openVideoFullScreen(
+                            video.id,
+                            video.title,
+                            externalUrl,
+                          ),
+                    ),
+                  ),
+                );
+              }).toList(),
         );
       },
     );
@@ -4513,11 +4593,12 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   void _openVideoFullScreen(String videoId, String title, String externalUrl) {
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => _FullScreenYouTubePlayer(
-          videoId: videoId,
-          title: title,
-          externalUrl: externalUrl,
-        ),
+        builder:
+            (_) => _FullScreenYouTubePlayer(
+              videoId: videoId,
+              title: title,
+              externalUrl: externalUrl,
+            ),
       ),
     );
   }
@@ -4528,9 +4609,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       children: [
         const Positioned.fill(
           child: IgnorePointer(
-            child: CustomPaint(
-              painter: _AnnouncementsBackgroundPainter(),
-            ),
+            child: CustomPaint(painter: _AnnouncementsBackgroundPainter()),
           ),
         ),
         _buildAnnouncementsContent(),
@@ -4629,17 +4708,18 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         final width = constraints.maxWidth;
         final horizontalPadding = _pageHorizontalPadding(width);
         final maxWidth = _contentMaxWidth(width);
-        final wrappedWidgets = widgets
-            .map(
-              (child) => Align(
-                alignment: Alignment.topCenter,
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(maxWidth: maxWidth),
-                  child: child,
-                ),
-              ),
-            )
-            .toList();
+        final wrappedWidgets =
+            widgets
+                .map(
+                  (child) => Align(
+                    alignment: Alignment.topCenter,
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(maxWidth: maxWidth),
+                      child: child,
+                    ),
+                  ),
+                )
+                .toList();
         return ListView(
           physics: const AlwaysScrollableScrollPhysics(),
           padding: EdgeInsets.fromLTRB(
@@ -4681,9 +4761,10 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   }
 
   Widget _announcementCard(_AnnouncementItem item) {
-    final preview = item.content.trim().isEmpty
-        ? 'No content provided.'
-        : item.content.trim();
+    final preview =
+        item.content.trim().isEmpty
+            ? 'No content provided.'
+            : item.content.trim();
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -4764,91 +4845,92 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   void _openAnnouncementDetail(_AnnouncementItem item) {
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => Scaffold(
-          backgroundColor: const Color(0xFFF6F9FC),
-          appBar: AppBar(
-            title: const Text('Announcement'),
-            centerTitle: true,
-            backgroundColor: Colors.white,
-            foregroundColor: const Color(0xFF1F2A3D),
-            elevation: 0.5,
-          ),
-          body: Stack(
-            children: [
-              Container(
-                decoration: const BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [Color(0xFFF6F9FC), Color(0xFFE9F2FB)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
+        builder:
+            (_) => Scaffold(
+              backgroundColor: const Color(0xFFF6F9FC),
+              appBar: AppBar(
+                title: const Text('Announcement'),
+                centerTitle: true,
+                backgroundColor: Colors.white,
+                foregroundColor: const Color(0xFF1F2A3D),
+                elevation: 0.5,
+              ),
+              body: Stack(
+                children: [
+                  Container(
+                    decoration: const BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [Color(0xFFF6F9FC), Color(0xFFE9F2FB)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                    ),
                   ),
-                ),
-              ),
-              SingleChildScrollView(
-                physics: const BouncingScrollPhysics(),
-                padding: const EdgeInsets.fromLTRB(16, 18, 16, 32),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 8,
-                      ),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF0F88D5).withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(24),
-                      ),
-                      child: Text(
-                        _formatAnnouncementDate(item.createdAt),
-                        style: const TextStyle(
-                          fontSize: 12.5,
-                          fontWeight: FontWeight.w800,
-                          color: Color(0xFF0F88D5),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 14),
-                    Text(
-                      item.title,
-                      style: const TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.w900,
-                        color: Color(0xFF1F2A3D),
-                      ),
-                    ),
-                    const SizedBox(height: 14),
-                    Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(color: const Color(0xFFE4E9F1)),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.06),
-                            blurRadius: 12,
-                            offset: const Offset(0, 8),
+                  SingleChildScrollView(
+                    physics: const BouncingScrollPhysics(),
+                    padding: const EdgeInsets.fromLTRB(16, 18, 16, 32),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 8,
                           ),
-                        ],
-                      ),
-                      child: Text(
-                        item.content.trim().isEmpty
-                            ? 'No content provided.'
-                            : item.content.trim(),
-                        style: const TextStyle(
-                          fontSize: 14.5,
-                          color: Color(0xFF2D3A4B),
-                          height: 1.6,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF0F88D5).withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(24),
+                          ),
+                          child: Text(
+                            _formatAnnouncementDate(item.createdAt),
+                            style: const TextStyle(
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w800,
+                              color: Color(0xFF0F88D5),
+                            ),
+                          ),
                         ),
-                      ),
+                        const SizedBox(height: 14),
+                        Text(
+                          item.title,
+                          style: const TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.w900,
+                            color: Color(0xFF1F2A3D),
+                          ),
+                        ),
+                        const SizedBox(height: 14),
+                        Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(color: const Color(0xFFE4E9F1)),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.06),
+                                blurRadius: 12,
+                                offset: const Offset(0, 8),
+                              ),
+                            ],
+                          ),
+                          child: Text(
+                            item.content.trim().isEmpty
+                                ? 'No content provided.'
+                                : item.content.trim(),
+                            style: const TextStyle(
+                              fontSize: 14.5,
+                              color: Color(0xFF2D3A4B),
+                              height: 1.6,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
-            ],
-          ),
-        ),
+            ),
       ),
     );
   }
@@ -4881,9 +4963,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       children: [
         const Positioned.fill(
           child: IgnorePointer(
-            child: CustomPaint(
-              painter: _AnnouncementsBackgroundPainter(),
-            ),
+            child: CustomPaint(painter: _AnnouncementsBackgroundPainter()),
           ),
         ),
         _buildHermosaChatContent(),
@@ -5035,38 +5115,39 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                 ),
               ],
             ),
-            child: message.isLoading
-                ? const Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          valueColor: AlwaysStoppedAnimation<Color>(
-                            Color(0xFF0F88D5),
+            child:
+                message.isLoading
+                    ? const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              Color(0xFF0F88D5),
+                            ),
                           ),
                         ),
-                      ),
-                      SizedBox(width: 10),
-                      Text(
-                        'Hermosa is typing...',
-                        style: TextStyle(
-                          fontSize: 13.5,
-                          color: Color(0xFF4A5565),
+                        SizedBox(width: 10),
+                        Text(
+                          'Hermosa is typing...',
+                          style: TextStyle(
+                            fontSize: 13.5,
+                            color: Color(0xFF4A5565),
+                          ),
                         ),
+                      ],
+                    )
+                    : Text(
+                      message.text,
+                      style: TextStyle(
+                        fontSize: 13.5,
+                        color: textColor,
+                        height: 1.45,
                       ),
-                    ],
-                  )
-                : Text(
-                    message.text,
-                    style: TextStyle(
-                      fontSize: 13.5,
-                      color: textColor,
-                      height: 1.45,
                     ),
-                  ),
           ),
         );
       },
@@ -5189,9 +5270,10 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     const systemPrompt =
         'You are Hermosa, the VHBC chat support assistant. Answer only using the provided context. You can also greet the user'
         'If the answer is not in the context, say you do not have that information and suggest contacting a sales specialist.';
-    final prompt = contextText.isEmpty
-        ? '$systemPrompt\n\nUser question:\n$userMessage'
-        : '$systemPrompt\n\nContext:\n$contextText\n\nUser question:\n$userMessage';
+    final prompt =
+        contextText.isEmpty
+            ? '$systemPrompt\n\nUser question:\n$userMessage'
+            : '$systemPrompt\n\nContext:\n$contextText\n\nUser question:\n$userMessage';
     final history = _buildHermosaConversationHistory();
     final contents = <Map<String, dynamic>>[
       for (final item in history)
@@ -5210,9 +5292,10 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     ];
 
     final configuredModel = dotenv.env['GEMINI_MODEL']?.trim();
-    final model = configuredModel != null && configuredModel.isNotEmpty
-        ? configuredModel
-        : 'gemini-1.5-flash';
+    final model =
+        configuredModel != null && configuredModel.isNotEmpty
+            ? configuredModel
+            : 'gemini-1.5-flash';
 
     return _postToServer(
       serverUrl: serverUrl,
@@ -5228,25 +5311,26 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   }) async {
     try {
       // Remove trailing slash from serverUrl if present
-      final baseUrl = serverUrl.endsWith('/')
-          ? serverUrl.substring(0, serverUrl.length - 1)
-          : serverUrl;
+      final baseUrl =
+          serverUrl.endsWith('/')
+              ? serverUrl.substring(0, serverUrl.length - 1)
+              : serverUrl;
       final endpoint = '$baseUrl/api/chat';
 
       final response = await http
           .post(
-        Uri.parse(endpoint),
-        headers: const {'Content-Type': 'application/json'},
-        body: jsonEncode({'contents': contents, 'model': model}),
-      )
+            Uri.parse(endpoint),
+            headers: const {'Content-Type': 'application/json'},
+            body: jsonEncode({'contents': contents, 'model': model}),
+          )
           .timeout(
-        const Duration(seconds: 30),
-        onTimeout: () {
-          throw Exception(
-            'Request timeout - server took too long to respond',
+            const Duration(seconds: 30),
+            onTimeout: () {
+              throw Exception(
+                'Request timeout - server took too long to respond',
+              );
+            },
           );
-        },
-      );
 
       if (response.statusCode < 200 || response.statusCode >= 300) {
         debugPrint(
@@ -5310,13 +5394,14 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
   List<Map<String, String>> _buildHermosaConversationHistory() {
     final history = <Map<String, String>>[];
-    final recentMessages = _hermosaMessages
-        .where((message) => !message.isLoading)
-        .toList()
-        .reversed
-        .take(8)
-        .toList()
-        .reversed;
+    final recentMessages =
+        _hermosaMessages
+            .where((message) => !message.isLoading)
+            .toList()
+            .reversed
+            .take(8)
+            .toList()
+            .reversed;
     for (final message in recentMessages) {
       history.add({
         'role': message.isUser ? 'user' : 'assistant',
@@ -5395,16 +5480,17 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     final queryTokens = _tokenizeHermosa(query);
     if (queryTokens.isEmpty) return '';
 
-    final scored = _hermosaKbChunks
-        .map(
-          (chunk) => MapEntry(
-            chunk,
-            _scoreHermosaChunk(queryTokens, chunk.tokens),
-          ),
-        )
-        .where((entry) => entry.value > 0)
-        .toList()
-      ..sort((a, b) => b.value.compareTo(a.value));
+    final scored =
+        _hermosaKbChunks
+            .map(
+              (chunk) => MapEntry(
+                chunk,
+                _scoreHermosaChunk(queryTokens, chunk.tokens),
+              ),
+            )
+            .where((entry) => entry.value > 0)
+            .toList()
+          ..sort((a, b) => b.value.compareTo(a.value));
 
     final topChunks = scored.take(5).map((entry) => entry.key).toList();
     if (topChunks.isEmpty) return '';
@@ -5523,11 +5609,7 @@ class _HermosaKbChunk {
 }
 
 class _GeminiResult {
-  const _GeminiResult({
-    required this.statusCode,
-    this.reply,
-    this.bodySnippet,
-  });
+  const _GeminiResult({required this.statusCode, this.reply, this.bodySnippet});
 
   final int statusCode;
   final String? reply;
@@ -5550,11 +5632,12 @@ class _TrianglePainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()..color = color;
-    final path = Path()
-      ..moveTo(size.width, 0)
-      ..lineTo(size.width, size.height * 0.65)
-      ..lineTo(size.width * 0.35, 0)
-      ..close();
+    final path =
+        Path()
+          ..moveTo(size.width, 0)
+          ..lineTo(size.width, size.height * 0.65)
+          ..lineTo(size.width * 0.35, 0)
+          ..close();
     canvas.drawPath(path, paint);
   }
 
@@ -5572,115 +5655,120 @@ class _HomeBackgroundPainter extends CustomPainter {
     paint.color = Colors.white;
     canvas.drawRect(Offset.zero & size, paint);
 
-    final topGreen = Path()
-      ..moveTo(0, size.height * 0.06)
-      ..quadraticBezierTo(
-        size.width * 0.25,
-        size.height * 0.01,
-        size.width * 0.55,
-        size.height * 0.08,
-      )
-      ..quadraticBezierTo(
-        size.width * 0.8,
-        size.height * 0.13,
-        size.width,
-        size.height * 0.07,
-      )
-      ..lineTo(size.width, 0)
-      ..lineTo(0, 0)
-      ..close();
+    final topGreen =
+        Path()
+          ..moveTo(0, size.height * 0.06)
+          ..quadraticBezierTo(
+            size.width * 0.25,
+            size.height * 0.01,
+            size.width * 0.55,
+            size.height * 0.08,
+          )
+          ..quadraticBezierTo(
+            size.width * 0.8,
+            size.height * 0.13,
+            size.width,
+            size.height * 0.07,
+          )
+          ..lineTo(size.width, 0)
+          ..lineTo(0, 0)
+          ..close();
     paint.color = const Color(0xFF136735);
     canvas.drawPath(topGreen, paint);
 
-    final topBlue = Path()
-      ..moveTo(0, size.height * 0.1)
-      ..quadraticBezierTo(
-        size.width * 0.18,
-        size.height * 0.05,
-        size.width * 0.48,
-        size.height * 0.12,
-      )
-      ..quadraticBezierTo(
-        size.width * 0.75,
-        size.height * 0.18,
-        size.width,
-        size.height * 0.12,
-      )
-      ..lineTo(size.width, size.height * 0.05)
-      ..quadraticBezierTo(
-        size.width * 0.62,
-        size.height * 0.12,
-        size.width * 0.28,
-        size.height * 0.05,
-      )
-      ..lineTo(0, size.height * 0.08)
-      ..close();
+    final topBlue =
+        Path()
+          ..moveTo(0, size.height * 0.1)
+          ..quadraticBezierTo(
+            size.width * 0.18,
+            size.height * 0.05,
+            size.width * 0.48,
+            size.height * 0.12,
+          )
+          ..quadraticBezierTo(
+            size.width * 0.75,
+            size.height * 0.18,
+            size.width,
+            size.height * 0.12,
+          )
+          ..lineTo(size.width, size.height * 0.05)
+          ..quadraticBezierTo(
+            size.width * 0.62,
+            size.height * 0.12,
+            size.width * 0.28,
+            size.height * 0.05,
+          )
+          ..lineTo(0, size.height * 0.08)
+          ..close();
     paint.color = const Color(0xFF0F88D5);
     canvas.drawPath(topBlue, paint);
 
-    final bottomGreen = Path()
-      ..moveTo(0, size.height)
-      ..lineTo(0, size.height * 0.86)
-      ..quadraticBezierTo(
-        size.width * 0.35,
-        size.height * 0.9,
-        size.width * 0.58,
-        size.height * 0.82,
-      )
-      ..quadraticBezierTo(
-        size.width * 0.8,
-        size.height * 0.76,
-        size.width,
-        size.height * 0.82,
-      )
-      ..lineTo(size.width, size.height)
-      ..close();
+    final bottomGreen =
+        Path()
+          ..moveTo(0, size.height)
+          ..lineTo(0, size.height * 0.86)
+          ..quadraticBezierTo(
+            size.width * 0.35,
+            size.height * 0.9,
+            size.width * 0.58,
+            size.height * 0.82,
+          )
+          ..quadraticBezierTo(
+            size.width * 0.8,
+            size.height * 0.76,
+            size.width,
+            size.height * 0.82,
+          )
+          ..lineTo(size.width, size.height)
+          ..close();
     paint.color = const Color(0xFF136735);
     canvas.drawPath(bottomGreen, paint);
 
-    final bottomBlue = Path()
-      ..moveTo(0, size.height * 0.92)
-      ..quadraticBezierTo(
-        size.width * 0.25,
-        size.height * 0.9,
-        size.width * 0.52,
-        size.height * 0.96,
-      )
-      ..quadraticBezierTo(
-        size.width * 0.78,
-        size.height * 1.02,
-        size.width,
-        size.height * 0.95,
-      )
-      ..lineTo(size.width, size.height)
-      ..lineTo(0, size.height)
-      ..close();
+    final bottomBlue =
+        Path()
+          ..moveTo(0, size.height * 0.92)
+          ..quadraticBezierTo(
+            size.width * 0.25,
+            size.height * 0.9,
+            size.width * 0.52,
+            size.height * 0.96,
+          )
+          ..quadraticBezierTo(
+            size.width * 0.78,
+            size.height * 1.02,
+            size.width,
+            size.height * 0.95,
+          )
+          ..lineTo(size.width, size.height)
+          ..lineTo(0, size.height)
+          ..close();
     paint.color = const Color(0xFF0F88D5);
     canvas.drawPath(bottomBlue, paint);
 
-    final subtleWave = Path()
-      ..moveTo(0, size.height * 0.32)
-      ..quadraticBezierTo(
-        size.width * 0.25,
-        size.height * 0.28,
-        size.width * 0.55,
-        size.height * 0.35,
-      )
-      ..quadraticBezierTo(
-        size.width * 0.8,
-        size.height * 0.4,
-        size.width,
-        size.height * 0.34,
-      )
-      ..lineTo(size.width, size.height * 0.42)
-      ..quadraticBezierTo(
-        size.width * 0.68,
-        size.height * 0.48,
-        size.width * 0.32,
-        size.height * 0.4,
-      )
-      ..lineTo(0, size.height * 0.45)
-      ..close();
+    final subtleWave =
+        Path()
+          ..moveTo(0, size.height * 0.32)
+          ..quadraticBezierTo(
+            size.width * 0.25,
+            size.height * 0.28,
+            size.width * 0.55,
+            size.height * 0.35,
+          )
+          ..quadraticBezierTo(
+            size.width * 0.8,
+            size.height * 0.4,
+            size.width,
+            size.height * 0.34,
+          )
+          ..lineTo(size.width, size.height * 0.42)
+          ..quadraticBezierTo(
+            size.width * 0.68,
+            size.height * 0.48,
+            size.width * 0.32,
+            size.height * 0.4,
+          )
+          ..lineTo(0, size.height * 0.45)
+          ..close();
     paint.color = Colors.white.withOpacity(0.65);
     canvas.drawPath(subtleWave, paint);
   }
@@ -5700,115 +5788,120 @@ class _AnnouncementsBackgroundPainter extends CustomPainter {
     canvas.drawRect(Offset.zero & size, paint);
 
     paint.color = const Color(0xFFF2F5F9);
-    final softWave = Path()
-      ..moveTo(0, size.height * 0.05)
-      ..quadraticBezierTo(
-        size.width * 0.25,
-        size.height * 0.02,
-        size.width * 0.55,
-        size.height * 0.08,
-      )
-      ..quadraticBezierTo(
-        size.width * 0.82,
-        size.height * 0.12,
-        size.width,
-        size.height * 0.05,
-      )
-      ..lineTo(size.width, 0)
-      ..lineTo(0, 0)
-      ..close();
+    final softWave =
+        Path()
+          ..moveTo(0, size.height * 0.05)
+          ..quadraticBezierTo(
+            size.width * 0.25,
+            size.height * 0.02,
+            size.width * 0.55,
+            size.height * 0.08,
+          )
+          ..quadraticBezierTo(
+            size.width * 0.82,
+            size.height * 0.12,
+            size.width,
+            size.height * 0.05,
+          )
+          ..lineTo(size.width, 0)
+          ..lineTo(0, 0)
+          ..close();
     canvas.drawPath(softWave, paint);
 
     paint.color = const Color(0xFFF6F8FB);
-    final midWave = Path()
-      ..moveTo(0, size.height * 0.20)
-      ..quadraticBezierTo(
-        size.width * 0.22,
-        size.height * 0.16,
-        size.width * 0.52,
-        size.height * 0.22,
-      )
-      ..quadraticBezierTo(
-        size.width * 0.8,
-        size.height * 0.26,
-        size.width,
-        size.height * 0.18,
-      )
-      ..lineTo(size.width, size.height * 0.28)
-      ..quadraticBezierTo(
-        size.width * 0.66,
-        size.height * 0.32,
-        size.width * 0.32,
-        size.height * 0.24,
-      )
-      ..lineTo(0, size.height * 0.30)
-      ..close();
+    final midWave =
+        Path()
+          ..moveTo(0, size.height * 0.20)
+          ..quadraticBezierTo(
+            size.width * 0.22,
+            size.height * 0.16,
+            size.width * 0.52,
+            size.height * 0.22,
+          )
+          ..quadraticBezierTo(
+            size.width * 0.8,
+            size.height * 0.26,
+            size.width,
+            size.height * 0.18,
+          )
+          ..lineTo(size.width, size.height * 0.28)
+          ..quadraticBezierTo(
+            size.width * 0.66,
+            size.height * 0.32,
+            size.width * 0.32,
+            size.height * 0.24,
+          )
+          ..lineTo(0, size.height * 0.30)
+          ..close();
     canvas.drawPath(midWave, paint);
 
-    final bottomGreen = Path()
-      ..moveTo(0, size.height)
-      ..lineTo(0, size.height * 0.90)
-      ..quadraticBezierTo(
-        size.width * 0.35,
-        size.height * 0.93,
-        size.width * 0.55,
-        size.height * 0.88,
-      )
-      ..quadraticBezierTo(
-        size.width * 0.78,
-        size.height * 0.82,
-        size.width,
-        size.height * 0.88,
-      )
-      ..lineTo(size.width, size.height)
-      ..close();
+    final bottomGreen =
+        Path()
+          ..moveTo(0, size.height)
+          ..lineTo(0, size.height * 0.90)
+          ..quadraticBezierTo(
+            size.width * 0.35,
+            size.height * 0.93,
+            size.width * 0.55,
+            size.height * 0.88,
+          )
+          ..quadraticBezierTo(
+            size.width * 0.78,
+            size.height * 0.82,
+            size.width,
+            size.height * 0.88,
+          )
+          ..lineTo(size.width, size.height)
+          ..close();
     paint.color = const Color(0xFF136735);
     canvas.drawPath(bottomGreen, paint);
 
-    final bottomBlue = Path()
-      ..moveTo(0, size.height * 0.94)
-      ..quadraticBezierTo(
-        size.width * 0.28,
-        size.height * 0.92,
-        size.width * 0.52,
-        size.height * 0.96,
-      )
-      ..quadraticBezierTo(
-        size.width * 0.80,
-        size.height * 1.00,
-        size.width,
-        size.height * 0.95,
-      )
-      ..lineTo(size.width, size.height)
-      ..lineTo(0, size.height)
-      ..close();
+    final bottomBlue =
+        Path()
+          ..moveTo(0, size.height * 0.94)
+          ..quadraticBezierTo(
+            size.width * 0.28,
+            size.height * 0.92,
+            size.width * 0.52,
+            size.height * 0.96,
+          )
+          ..quadraticBezierTo(
+            size.width * 0.80,
+            size.height * 1.00,
+            size.width,
+            size.height * 0.95,
+          )
+          ..lineTo(size.width, size.height)
+          ..lineTo(0, size.height)
+          ..close();
     paint.color = const Color(0xFF0F88D5);
     canvas.drawPath(bottomBlue, paint);
 
     paint.color = Colors.white.withOpacity(0.85);
-    final highlight = Path()
-      ..moveTo(0, size.height * 0.76)
-      ..quadraticBezierTo(
-        size.width * 0.25,
-        size.height * 0.72,
-        size.width * 0.55,
-        size.height * 0.78,
-      )
-      ..quadraticBezierTo(
-        size.width * 0.8,
-        size.height * 0.84,
-        size.width,
-        size.height * 0.76,
-      )
-      ..lineTo(size.width, size.height * 0.84)
-      ..quadraticBezierTo(
-        size.width * 0.68,
-        size.height * 0.88,
-        size.width * 0.32,
-        size.height * 0.82,
-      )
-      ..lineTo(0, size.height * 0.86)
-      ..close();
+    final highlight =
+        Path()
+          ..moveTo(0, size.height * 0.76)
+          ..quadraticBezierTo(
+            size.width * 0.25,
+            size.height * 0.72,
+            size.width * 0.55,
+            size.height * 0.78,
+          )
+          ..quadraticBezierTo(
+            size.width * 0.8,
+            size.height * 0.84,
+            size.width,
+            size.height * 0.76,
+          )
+          ..lineTo(size.width, size.height * 0.84)
+          ..quadraticBezierTo(
+            size.width * 0.68,
+            size.height * 0.88,
+            size.width * 0.32,
+            size.height * 0.82,
+          )
+          ..lineTo(0, size.height * 0.86)
+          ..close();
     canvas.drawPath(highlight, paint);
   }
 
@@ -5903,10 +5996,11 @@ class _FullScreenYouTubePlayerState extends State<_FullScreenYouTubePlayer> {
                       borderRadius: BorderRadius.circular(24),
                       child: InkWell(
                         borderRadius: BorderRadius.circular(24),
-                        onTap: () => launchUrl(
-                          Uri.parse(widget.externalUrl),
-                          mode: LaunchMode.externalApplication,
-                        ),
+                        onTap:
+                            () => launchUrl(
+                              Uri.parse(widget.externalUrl),
+                              mode: LaunchMode.externalApplication,
+                            ),
                         child: const Padding(
                           padding: EdgeInsets.symmetric(
                             horizontal: 10,
@@ -5925,9 +6019,10 @@ class _FullScreenYouTubePlayerState extends State<_FullScreenYouTubePlayer> {
               ),
               Expanded(
                 child: SizedBox.expand(
-                  child: kIsWeb
-                      ? buildYouTubeEmbed(widget.videoId)
-                      : const SizedBox.shrink(),
+                  child:
+                      kIsWeb
+                          ? buildYouTubeEmbed(widget.videoId)
+                          : const SizedBox.shrink(),
                 ),
               ),
             ],
@@ -5966,10 +6061,11 @@ class _FullScreenYouTubePlayerState extends State<_FullScreenYouTubePlayer> {
           const SizedBox(width: 12),
           IconButton(
             icon: const Icon(Icons.open_in_new, color: Colors.white),
-            onPressed: () => launchUrl(
-              Uri.parse(widget.externalUrl),
-              mode: LaunchMode.externalApplication,
-            ),
+            onPressed:
+                () => launchUrl(
+                  Uri.parse(widget.externalUrl),
+                  mode: LaunchMode.externalApplication,
+                ),
           ),
         ],
       ),
