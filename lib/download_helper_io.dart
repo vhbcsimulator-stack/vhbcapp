@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:http/http.dart' as http;
+import 'package:path_provider/path_provider.dart';
 
 Future<String?> saveBytesToDownloads(Uint8List bytes, String fileName) async {
   String downloadsPath;
@@ -11,7 +12,9 @@ Future<String?> saveBytesToDownloads(Uint8List bytes, String fileName) async {
   } else if (Platform.isMacOS) {
     downloadsPath = '${Platform.environment['HOME']}/Downloads';
   } else if (Platform.isIOS) {
-    downloadsPath = '${Directory.systemTemp.path}/Downloads';
+    // Use the app's documents directory, which is accessible via the iOS Files app.
+    final docDir = await getApplicationDocumentsDirectory();
+    downloadsPath = docDir.path;
   } else {
     downloadsPath = Directory.systemTemp.path;
   }

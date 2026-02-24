@@ -46,13 +46,13 @@ class OptimizedCachedImage extends StatelessWidget {
   bool _isSvgUrl(String url) {
     final uri = Uri.tryParse(url);
     if (uri == null) return false;
-    
+
     final path = uri.path.toLowerCase();
     if (path.endsWith('.svg')) return true;
-    
+
     final format = uri.queryParameters['format']?.toLowerCase();
     if (format == 'svg') return true;
-    
+
     return false;
   }
 
@@ -70,7 +70,8 @@ class OptimizedCachedImage extends StatelessWidget {
     }
 
     // Use custom cache manager for better performance
-    final effectiveCacheManager = cacheManager ?? VHBCImageCacheManager.instance;
+    final effectiveCacheManager =
+        cacheManager ?? VHBCImageCacheManager.instance;
 
     return CachedNetworkImage(
       imageUrl: imageUrl,
@@ -95,7 +96,7 @@ class OptimizedCachedImage extends StatelessWidget {
 
   Widget _buildPlaceholder(BuildContext context) {
     if (placeholder != null) return placeholder!;
-    
+
     return Container(
       width: width,
       height: height,
@@ -111,7 +112,7 @@ class OptimizedCachedImage extends StatelessWidget {
 
   Widget _buildProgressivePlaceholder(BuildContext context) {
     if (placeholder != null) return placeholder!;
-    
+
     return Container(
       width: width,
       height: height,
@@ -164,15 +165,15 @@ class OptimizedCachedImage extends StatelessWidget {
 
   Widget _buildErrorWidget(BuildContext context) {
     if (errorWidget != null) return errorWidget!;
-    
+
     return Container(
       width: width,
       height: height,
       color: const Color(0xFFF4F7FB),
       alignment: Alignment.center,
-      child: Column(
+      child: const Column(
         mainAxisSize: MainAxisSize.min,
-        children: const [
+        children: [
           Icon(
             Icons.broken_image,
             color: Color(0xFF6C7A89),

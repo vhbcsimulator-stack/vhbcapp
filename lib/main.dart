@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:webview_flutter/webview_flutter.dart';
+// import 'package:webview_flutter_web/webview_flutter_web.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'dart:math';
@@ -56,8 +58,8 @@ class MyApp extends StatelessWidget {
           selectedItemColor: colorScheme.primary,
           unselectedItemColor: Colors.grey[600],
         ),
-        floatingActionButtonTheme: FloatingActionButtonThemeData(
-          backgroundColor: const Color(0xFF0F88D5),
+        floatingActionButtonTheme: const FloatingActionButtonThemeData(
+          backgroundColor: Color(0xFF0F88D5),
           foregroundColor: Colors.white,
         ),
         /*
@@ -188,14 +190,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   bool _isLoadingAnnouncements = false;
   String? _announcementsError;
   List<_AnnouncementItem> _announcements = [];
-  bool _isLoadingFaqDoc = false;
-  Uint8List? _faqPdfBytes;
-  String? _faqError;
-  final Map<String, Uint8List> _faqPdfCache = {};
-  final PdfViewerController _faqPdfController = PdfViewerController();
-  final pdfrx.PdfViewerController _faqPdfControllerWeb =
-      pdfrx.PdfViewerController();
-  double _faqZoomLevel = 1.0;
+
   final List<_HermosaChatMessage> _hermosaMessages = [];
   late final TextEditingController _hermosaMessageController;
   late final ScrollController _hermosaScrollController;
@@ -503,92 +498,6 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     super.dispose();
   }
 
-  void _adjustFaqZoom(double delta) {
-    if (kIsWeb) {
-      if (!_faqPdfControllerWeb.isReady) return;
-      final newZoom =
-          (_faqPdfControllerWeb.currentZoom + delta).clamp(1.0, 4.0).toDouble();
-      _faqPdfControllerWeb.setZoom(
-        _faqPdfControllerWeb.centerPosition,
-        newZoom,
-        // duration: Duration.zero,
-      );
-      setState(() => _faqZoomLevel = newZoom);
-      return;
-    }
-    final newZoom =
-        (_faqPdfController.zoomLevel + delta).clamp(1.0, 4.0).toDouble();
-    _faqPdfController.zoomLevel = newZoom;
-    setState(() => _faqZoomLevel = newZoom);
-  }
-
-  void _openFaqPdfFullScreen(BuildContext context) {
-    final pdfBytes = _faqPdfBytes;
-    if (pdfBytes == null) return;
-    final assetPath = _faqAssetPathForProject(_projects[_selectedProject]);
-    final projectTitle =
-        _selectedProject >= 0 && _selectedProject < _projectTitles.length
-            ? _projectTitles[_selectedProject]
-            : 'Project';
-    final controller = PdfViewerController()..zoomLevel = _faqZoomLevel;
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) {
-          if (kIsWeb && assetPath != null) {
-            final webController = pdfrx.PdfViewerController();
-            return Scaffold(
-              backgroundColor: Colors.black,
-              appBar: AppBar(
-                backgroundColor: Colors.black,
-                elevation: 0,
-                iconTheme: const IconThemeData(color: Colors.white),
-                title: Text(
-                  'FAQs $projectTitle',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-              body: SafeArea(
-                child: pdfrx.PdfViewer.asset(
-                  assetPath,
-                  controller: webController,
-                  params: _faqPdfrxParams(),
-                ),
-              ),
-            );
-          }
-          return Scaffold(
-            backgroundColor: Colors.black,
-            appBar: AppBar(
-              backgroundColor: Colors.black,
-              elevation: 0,
-              iconTheme: const IconThemeData(color: Colors.white),
-              title: Text(
-                'FAQs $projectTitle',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ),
-            body: SafeArea(
-              child: SfPdfViewer.memory(
-                pdfBytes,
-                controller: controller,
-                canShowPaginationDialog: false,
-                canShowScrollHead: true,
-                canShowScrollStatus: true,
-                interactionMode: PdfInteractionMode.pan,
-              ),
-            ),
-          );
-        },
-      ),
-    );
-  }
-
   void _onComputeTabChanged() {
     if (_computeTabIndex != _computeTabController.index &&
         !_computeTabController.indexIsChanging) {
@@ -707,7 +616,6 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   }
 
   void _onProjectSelected(int index) {
-    final projectCode = _projects[index];
     setState(() {
       _selectedProject = index;
       _salesMapError = null;
@@ -731,9 +639,6 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       _downpaymentIndex = 0;
       _paymentYears = 1;
       _isPaymentYearsEnabled = true;
-      _faqError = null;
-      _isLoadingFaqDoc = false;
-      _faqPdfBytes = _faqPdfCache[projectCode];
       _videosError = null;
       _isLoadingVideos = false;
       _tcpAmount = 0;
@@ -824,7 +729,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         if (item is! Map) continue;
         final projectName = item['project_name']?.toString();
         if (projectName == null ||
-            projectName.toUpperCase() != project.toUpperCase()) continue;
+            projectName.toUpperCase() != project.toUpperCase()) {
+          continue;
+        }
         final imageValue = item['image_link'] ??
             item['imageLink'] ??
             item['image_url'] ??
@@ -877,7 +784,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         if (item is! Map) continue;
         final projectName = item['project_name']?.toString();
         if (projectName == null ||
-            projectName.toUpperCase() != project.toUpperCase()) continue;
+            projectName.toUpperCase() != project.toUpperCase()) {
+          continue;
+        }
         final imageValue = item['image_link'] ??
             item['imageLink'] ??
             item['image_url'] ??
@@ -943,7 +852,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         if (item is! Map) continue;
         final projectName = item['project_name']?.toString();
         if (projectName == null ||
-            projectName.toUpperCase() != project.toUpperCase()) continue;
+            projectName.toUpperCase() != project.toUpperCase()) {
+          continue;
+        }
 
         final rawLink = (item['link'] ??
                 item['url'] ??
@@ -1320,7 +1231,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     return uri.toString();
   }
 
-  void _warmImageCache(List<String> urls, {double? logicalHeight}) {
+  void _warmImageCache(List<String> urls) {
     if (!mounted || urls.isEmpty) return;
 
     // Intentionally no-op: user requested no memory caching.
@@ -1373,46 +1284,6 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     }
   }
 
-  Future<void> _downloadFaqPdf(String project) async {
-    final assetPath = _faqAssetPathForProject(project);
-    if (assetPath == null) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('No FAQ document available to download.'),
-          ),
-        );
-      }
-      return;
-    }
-
-    try {
-      final data = await rootBundle.load(assetPath);
-      final bytes = data.buffer.asUint8List();
-      final now = DateTime.now();
-      final timestamp =
-          '${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}_${now.hour.toString().padLeft(2, '0')}${now.minute.toString().padLeft(2, '0')}${now.second.toString().padLeft(2, '0')}';
-      final fileName = '${_sanitizeFileName('$project FAQs')}_$timestamp.pdf';
-
-      final savedPath = await saveBytesToDownloads(bytes, fileName);
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            savedPath != null
-                ? 'Downloaded to $savedPath'
-                : 'Download is not supported on this platform.',
-          ),
-        ),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Download failed: $e')));
-    }
-  }
-
   Future<void> _loadSalesMaps() async {
     if (_isLoadingSalesMap) return;
     final project = _projects[_selectedProject].toUpperCase();
@@ -1441,8 +1312,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         for (final item in dataList) {
           if (item is! Map) continue;
           final projectValue = item['project']?.toString();
-          if (projectValue != null && projectValue.toUpperCase() != project)
+          if (projectValue != null && projectValue.toUpperCase() != project) {
             continue;
+          }
           final imageValue = item['image_URL'] ?? item['image_url'];
           final candidate = imageValue?.toString();
           if (candidate != null && candidate.isNotEmpty) {
@@ -1471,8 +1343,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         for (final item in dataList) {
           if (item is! Map) continue;
           final projectValue = item['project']?.toString();
-          if (projectValue == null || projectValue.toUpperCase() != project)
+          if (projectValue == null || projectValue.toUpperCase() != project) {
             continue;
+          }
           final imageValue = item['image_URL'] ?? item['image_url'];
           final imageUrl = imageValue?.toString();
           if (imageUrl == null || imageUrl.isEmpty) continue;
@@ -1854,8 +1727,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         final unitValue =
             (row['unit_type'] ?? row['unitType'] ?? row['unit'] ?? row['type'])
                 ?.toString();
-        if (unitValue == null || _normalizeKey(unitValue) != normalizedUnit)
+        if (unitValue == null || _normalizeKey(unitValue) != normalizedUnit) {
           continue;
+        }
 
         bool matches = true;
         final floorValue =
@@ -2088,7 +1962,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       builder: (context, constraints) {
         final bottomInset = MediaQuery.of(context).padding.bottom;
         // Reserve space for the bottom nav so the card never tucks underneath it.
-        final navPadding = kBottomNavigationBarHeight + 8;
+        const navPadding = kBottomNavigationBarHeight + 8;
         final double safeHeight = (constraints.maxHeight - bottomInset)
             .clamp(0.0, double.infinity)
             .toDouble();
@@ -2264,11 +2138,11 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Row(
+                                const Row(
                                   mainAxisAlignment:
                                       MainAxisAlignment.spaceBetween,
                                   children: [
-                                    const Text(
+                                    Text(
                                       'Payment Calculator',
                                       style: TextStyle(
                                         fontSize: 18,
@@ -2278,7 +2152,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                                     ),
                                     Icon(
                                       Icons.payments_outlined,
-                                      color: const Color(0xFF2BB673),
+                                      color: Color(0xFF2BB673),
                                     ),
                                   ],
                                 ),
@@ -2311,7 +2185,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                                     TextField(
                                       controller: _lotSizeController,
                                       keyboardType:
-                                          TextInputType.numberWithOptions(
+                                          const TextInputType.numberWithOptions(
                                         decimal: true,
                                       ),
                                       onChanged: _onLotSizeChanged,
@@ -2557,7 +2431,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                                                   const SizedBox(height: 8),
                                                   DropdownButtonFormField<
                                                       String>(
-                                                    value: _selectedView,
+                                                    initialValue: _selectedView,
                                                     items: _msccViewOptions
                                                         .map(
                                                           (view) =>
@@ -2650,7 +2524,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                                                   const SizedBox(height: 8),
                                                   DropdownButtonFormField<
                                                       String>(
-                                                    value: _selectedEndUnit,
+                                                    initialValue:
+                                                        _selectedEndUnit,
                                                     items: _msccEndUnitOptions
                                                         .map(
                                                           (value) =>
@@ -2739,7 +2614,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                                                   const SizedBox(height: 8),
                                                   DropdownButtonFormField<
                                                       String>(
-                                                    value: _selectedFurnish,
+                                                    initialValue:
+                                                        _selectedFurnish,
                                                     items: _msccFurnishOptions
                                                         .map(
                                                           (value) =>
@@ -2955,8 +2831,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                                         color: const Color(0xFFE4E9F1),
                                       ),
                                     ),
-                                    child: Column(
-                                      children: const [
+                                    child: const Column(
+                                      children: [
                                         Icon(
                                           Icons.account_balance,
                                           color: Color(0xFF2BB673),
@@ -3418,9 +3294,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Column(
+          const Column(
             crossAxisAlignment: CrossAxisAlignment.start,
-            children: const [
+            children: [
               Text(
                 'STATUS UPDATE',
                 style: TextStyle(
@@ -3503,12 +3379,33 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                     // Prevents the inline map from capturing taps that try to open an intent.
                     child: kIsWeb
                         ? buildMapEmbed(mapEmbedUrl)
-                        : const Center(
-                            child: Text(
-                              'Map view disabled for iOS build compatibility',
-                              style: TextStyle(color: Colors.grey),
-                              textAlign: TextAlign.center,
-                            ),
+                        : Builder(
+                            builder: (_) {
+                              final controller = WebViewController();
+                              controller.setJavaScriptMode(
+                                JavaScriptMode.unrestricted,
+                              );
+                              controller.loadHtmlString('''
+                            <html>
+                              <head>
+                                <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
+                                <style>
+                                  html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; }
+                                  iframe { border: 0; width: 100%; height: 100%; pointer-events: none; }
+                                </style>
+                              </head>
+                              <body>
+                                <iframe
+                                  src="$mapEmbedUrl"
+                                  allowfullscreen
+                                  loading="lazy"
+                                  referrerpolicy="no-referrer-when-downgrade">
+                                </iframe>
+                              </body>
+                            </html>
+                            ''');
+                              return WebViewWidget(controller: controller);
+                            },
                           ),
                   ),
                 ),
@@ -3557,8 +3454,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: const [
+          const Row(
+            children: [
               Icon(Icons.map_outlined, color: Color(0xFF2BB673)),
               SizedBox(width: 8),
               Text(
@@ -3610,13 +3507,28 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           ),
           body: Builder(
             builder: (_) {
-              return const Center(
-                child: Text(
-                  'Map view disabled for iOS build compatibility',
-                  style: TextStyle(color: Colors.grey),
-                  textAlign: TextAlign.center,
-                ),
-              );
+              final controller = WebViewController();
+              controller.setJavaScriptMode(JavaScriptMode.unrestricted);
+              controller.loadHtmlString('''
+                <html>
+                  <head>
+                    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
+                    <style>
+                      html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; }
+                      iframe { border: 0; width: 100%; height: 100%; }
+                    </style>
+                  </head>
+                  <body>
+                    <iframe
+                      src="$mapEmbedUrl"
+                      allowfullscreen
+                      loading="lazy"
+                      referrerpolicy="no-referrer-when-downgrade">
+                    </iframe>
+                  </body>
+                </html>
+                ''');
+              return WebViewWidget(controller: controller);
             },
           ),
         ),
@@ -3956,9 +3868,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
             ? Container(
                 height: mediaHeight,
                 alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF4F7FB),
-                  borderRadius: const BorderRadius.vertical(
+                decoration: const BoxDecoration(
+                  color: Color(0xFFF4F7FB),
+                  borderRadius: BorderRadius.vertical(
                     bottom: Radius.circular(16),
                   ),
                 ),
@@ -4201,13 +4113,13 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                           ),
                         ),
                       ),
-                      Positioned(
+                      const Positioned(
                         left: 12,
                         bottom: 12,
                         right: 12,
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: const [
+                          children: [
                             Text(
                               'Tap to play fullscreen',
                               style: TextStyle(
@@ -4336,7 +4248,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       builder: (context, constraints) {
         final width = constraints.maxWidth;
         final columns = _mediaGridColumns(width);
-        final spacing = 12.0;
+        const spacing = 12.0;
         final horizontalPadding = _pageHorizontalPadding(width);
         final itemWidth =
             ((width - (horizontalPadding * 2) - (spacing * (columns - 1))) /
@@ -4463,7 +4375,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       builder: (context, constraints) {
         final width = constraints.maxWidth;
         final columns = _mediaGridColumns(width);
-        final spacing = 12.0;
+        const spacing = 12.0;
         final horizontalPadding = _pageHorizontalPadding(width);
         final itemWidth =
             ((width - (horizontalPadding * 2) - (spacing * (columns - 1))) /
@@ -4614,9 +4526,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     return Stack(
       fit: StackFit.expand,
       children: [
-        Positioned.fill(
+        const Positioned.fill(
           child: IgnorePointer(
-            child: const CustomPaint(
+            child: CustomPaint(
               painter: _AnnouncementsBackgroundPainter(),
             ),
           ),
@@ -4693,9 +4605,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       );
     } else if (_announcements.isEmpty) {
       widgets.add(
-        Padding(
-          padding: const EdgeInsets.symmetric(vertical: 40),
-          child: const Center(
+        const Padding(
+          padding: EdgeInsets.symmetric(vertical: 40),
+          child: Center(
             child: Text(
               'No Announcement yet',
               textAlign: TextAlign.center,
@@ -4745,11 +4657,11 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   }
 
   Widget _announcementsHeader() {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
+    return const Padding(
+      padding: EdgeInsets.only(bottom: 12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        children: const [
+        children: [
           Text(
             'Announcements',
             style: TextStyle(
@@ -4967,15 +4879,26 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     return Stack(
       fit: StackFit.expand,
       children: [
-        Positioned.fill(
+        const Positioned.fill(
           child: IgnorePointer(
-            child: const CustomPaint(
+            child: CustomPaint(
               painter: _AnnouncementsBackgroundPainter(),
             ),
           ),
         ),
         _buildHermosaChatContent(),
       ],
+    );
+  }
+
+  Widget _buildCompanyProfileTab() {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(16),
+      child: SfPdfViewer.asset(
+        'assets/company_profile.pdf',
+        canShowScrollHead: false,
+        canShowScrollStatus: false,
+      ),
     );
   }
 
@@ -5015,16 +4938,17 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                       ),
                       tabs: const [
                         Tab(text: 'Hermosa'),
-                        Tab(text: 'FAQs'),
+                        Tab(text: 'Company Profile'),
                       ],
                     ),
                     const SizedBox(height: 12),
                     Expanded(
                       child: TabBarView(
                         controller: _faqTabController,
+                        physics: const NeverScrollableScrollPhysics(),
                         children: [
                           _buildHermosaChatTab(),
-                          _buildFaqTab(),
+                          _buildCompanyProfileTab(),
                         ],
                       ),
                     ),
@@ -5048,23 +4972,6 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     );
   }
 
-  Widget _buildFaqTab() {
-    final project = _projects[_selectedProject];
-    final assetPath = _faqAssetPathForProject(project);
-    if (_faqPdfBytes == null && !_isLoadingFaqDoc && _faqError == null) {
-      _loadFaqDoc();
-    }
-    return Column(
-      children: [
-        _faqHeader(project),
-        const SizedBox(height: 12),
-        Expanded(
-          child: _faqContentCard(project, assetPath),
-        ),
-      ],
-    );
-  }
-
   Widget _buildHermosaChatMessages() {
     if (_hermosaMessages.isEmpty) {
       return Container(
@@ -5081,8 +4988,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
             ),
           ],
         ),
-        child: Row(
-          children: const [
+        child: const Row(
+          children: [
             Icon(Icons.support_agent, color: Color(0xFF0F88D5)),
             SizedBox(width: 12),
             Expanded(
@@ -5129,9 +5036,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
               ],
             ),
             child: message.isLoading
-                ? Row(
+                ? const Row(
                     mainAxisSize: MainAxisSize.min,
-                    children: const [
+                    children: [
                       SizedBox(
                         width: 16,
                         height: 16,
@@ -5279,7 +5186,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     required String userMessage,
     required String contextText,
   }) async {
-    final systemPrompt =
+    const systemPrompt =
         'You are Hermosa, the VHBC chat support assistant. Answer only using the provided context. You can also greet the user'
         'If the answer is not in the context, say you do not have that information and suggest contacting a sales specialist.';
     final prompt = contextText.isEmpty
@@ -5547,400 +5454,6 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     return chunks;
   }
 
-  Widget _faqHeader(String project) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'FAQs',
-          style: TextStyle(
-            fontSize: 22,
-            fontWeight: FontWeight.w800,
-            color: Color(0xFF1F2A3D),
-          ),
-        ),
-        const SizedBox(height: 6),
-        Text(
-          'Showing FAQs for $project',
-          style: const TextStyle(fontSize: 13.5, color: Color(0xFF6C7A89)),
-        ),
-      ],
-    );
-  }
-
-  Widget _faqContentCard(String project, String? assetPath) {
-    final decoration = BoxDecoration(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(14),
-      border: Border.all(color: const Color(0xFFE4E9F1)),
-      boxShadow: [
-        BoxShadow(
-          color: Colors.black.withOpacity(0.06),
-          blurRadius: 12,
-          offset: const Offset(0, 8),
-        ),
-      ],
-    );
-
-    if (assetPath == null) {
-      return _faqMessageCard(
-        decoration: decoration,
-        icon: Icons.info_outline_rounded,
-        title: 'No FAQs uploaded yet',
-        message:
-            'We do not have FAQ content for $project. Please check again once it is available.',
-      );
-    }
-
-    if (_isLoadingFaqDoc) {
-      return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 22),
-        decoration: decoration,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: const [
-            CircularProgressIndicator(
-              valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF0F88D5)),
-            ),
-            SizedBox(height: 12),
-            Text(
-              'Loading FAQ document...',
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w700,
-                color: Color(0xFF2D3A4B),
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    if (_faqError != null) {
-      return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 18),
-        decoration: decoration,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                const Icon(
-                  Icons.error_outline_rounded,
-                  color: Colors.redAccent,
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    _faqError!,
-                    style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700,
-                      color: Colors.redAccent,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            ElevatedButton(
-              onPressed: () => _loadFaqDoc(forceRefresh: true),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF0F88D5),
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 10,
-                ),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                elevation: 0,
-              ),
-              child: const Text(
-                'Retry',
-                style: TextStyle(fontWeight: FontWeight.w700),
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    if (_faqPdfBytes != null) {
-      return LayoutBuilder(
-        builder: (context, _) {
-          return Container(
-            padding: const EdgeInsets.all(18),
-            decoration: decoration,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 6,
-                      ),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF0F88D5).withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Text(
-                        project,
-                        style: const TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w800,
-                          color: Color(0xFF0F88D5),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    const Text(
-                      'FAQs Document',
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w800,
-                        color: Color(0xFF2D3A4B),
-                      ),
-                    ),
-                    const Spacer(),
-                    PopupMenuButton<String>(
-                      icon: const Icon(
-                        Icons.more_vert,
-                        color: Color(0xFF4A5565),
-                      ),
-                      onSelected: (value) {
-                        if (value == 'download') {
-                          _downloadFaqPdf(project);
-                        }
-                      },
-                      itemBuilder: (context) => const [
-                        PopupMenuItem(
-                          value: 'download',
-                          child: Text('Download PDF'),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                const Divider(height: 1, color: Color(0xFFE4E9F1)),
-                const SizedBox(height: 12),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    IconButton(
-                      tooltip: 'Zoom out',
-                      onPressed: () => _adjustFaqZoom(-0.25),
-                      icon: const Icon(Icons.zoom_out),
-                    ),
-                    Text(
-                      '${_faqZoomLevel.toStringAsFixed(1)}x',
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w700,
-                        color: Color(0xFF2D3A4B),
-                      ),
-                    ),
-                    IconButton(
-                      tooltip: 'Zoom in',
-                      onPressed: () => _adjustFaqZoom(0.25),
-                      icon: const Icon(Icons.zoom_in),
-                    ),
-                    IconButton(
-                      tooltip: 'Full screen',
-                      onPressed: () => _openFaqPdfFullScreen(context),
-                      icon: const Icon(Icons.fullscreen),
-                    ),
-                  ],
-                ),
-                Expanded(
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(12),
-                    child: kIsWeb
-                        ? pdfrx.PdfViewer.asset(
-                            assetPath,
-                            controller: _faqPdfControllerWeb,
-                            params: _faqPdfrxParams(),
-                          )
-                        : SfPdfViewer.memory(
-                            _faqPdfBytes!,
-                            controller: _faqPdfController,
-                            canShowPaginationDialog: false,
-                            canShowScrollHead: true,
-                            canShowScrollStatus: true,
-                            interactionMode: PdfInteractionMode.pan,
-                          ),
-                  ),
-                ),
-              ],
-            ),
-          );
-        },
-      );
-    }
-
-    return _faqMessageCard(
-      decoration: decoration,
-      icon: Icons.help_outline,
-      title: 'FAQ document',
-      message: 'If the FAQ document does not appear, please try again later.',
-    );
-  }
-
-  Widget _faqWhyVhbcContent() {
-    final decoration = BoxDecoration(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(14),
-      border: Border.all(color: const Color(0xFFE4E9F1)),
-      boxShadow: [
-        BoxShadow(
-          color: Colors.black.withOpacity(0.06),
-          blurRadius: 12,
-          offset: const Offset(0, 8),
-        ),
-      ],
-    );
-
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: decoration,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: const [
-          Text(
-            'Why VHBC?',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w800,
-              color: Color(0xFF2D3A4B),
-            ),
-          ),
-          SizedBox(height: 10),
-          Text(
-            'We’ll share the highlights that make VHBC special here soon.',
-            style: TextStyle(
-              fontSize: 13.5,
-              color: Color(0xFF4A5565),
-              height: 1.45,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  pdfrx.PdfViewerParams _faqPdfrxParams() {
-    return pdfrx.PdfViewerParams(
-      backgroundColor: Colors.white,
-      minScale: 1.0,
-      maxScale: 4.0,
-      onViewerReady: (document, controller) {
-        if (!mounted) return;
-        setState(() => _faqZoomLevel = controller.currentZoom);
-      },
-    );
-  }
-
-  Widget _faqMessageCard({
-    required BoxDecoration decoration,
-    required IconData icon,
-    required String title,
-    required String message,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: decoration,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(icon, color: const Color(0xFF2BB673)),
-              const SizedBox(width: 8),
-              Text(
-                title,
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w800,
-                  color: Color(0xFF2D3A4B),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Text(
-            message,
-            style: const TextStyle(
-              fontSize: 13.5,
-              color: Color(0xFF4A5565),
-              height: 1.45,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Future<void> _loadFaqDoc({bool forceRefresh = false}) async {
-    final project = _projects[_selectedProject];
-    final assetPath = _faqAssetPathForProject(project);
-    if (assetPath == null) {
-      setState(() {
-        _faqPdfBytes = null;
-        _faqError = null;
-        _isLoadingFaqDoc = false;
-      });
-      return;
-    }
-
-    if (!forceRefresh && _faqPdfCache.containsKey(project)) {
-      setState(() {
-        _faqPdfBytes = _faqPdfCache[project];
-        _faqError = null;
-      });
-      return;
-    }
-
-    setState(() {
-      _isLoadingFaqDoc = true;
-      if (forceRefresh) {
-        _faqPdfBytes = null;
-      }
-      _faqError = null;
-    });
-
-    try {
-      final data = await rootBundle.load(assetPath);
-      final pdfBytes = data.buffer.asUint8List();
-      if (!mounted) return;
-      setState(() {
-        _faqPdfCache[project] = pdfBytes;
-        _faqPdfBytes = pdfBytes;
-      });
-    } catch (e) {
-      debugPrint('Failed to load FAQ doc for $project: $e');
-      if (!mounted) return;
-      setState(() {
-        _faqError = 'Failed to load FAQs for $project. Please try again.';
-      });
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isLoadingFaqDoc = false;
-        });
-      }
-    }
-  }
-
-  String? _faqAssetPathForProject(String project) {
-    if (project.toUpperCase() == 'MVLC') return 'assets/mvlc.pdf';
-    if (project.toUpperCase() == 'ERHD') return 'assets/erhd.pdf';
-    if (project.toUpperCase() == 'MSCC') return 'assets/mscc.pdf';
-    return null;
-  }
-
   Widget _placeholder(String label) {
     return Center(
       child: Text(
@@ -6010,7 +5523,11 @@ class _HermosaKbChunk {
 }
 
 class _GeminiResult {
-  const _GeminiResult({required this.statusCode, this.reply, this.bodySnippet});
+  const _GeminiResult({
+    required this.statusCode,
+    this.reply,
+    this.bodySnippet,
+  });
 
   final int statusCode;
   final String? reply;
