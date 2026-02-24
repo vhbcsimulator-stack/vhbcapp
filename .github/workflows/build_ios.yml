@@ -10,7 +10,7 @@ on:
 jobs:
   build_ios:
     name: Build iOS IPA
-    runs-on: macos-latest
+    runs-on: macos-15
 
     steps:
       - name: Checkout code
@@ -25,7 +25,7 @@ jobs:
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.24.0' # Adjust to match your project's version if needed
+          flutter-version: '3.29.0'
           channel: 'stable'
           cache: true
 
