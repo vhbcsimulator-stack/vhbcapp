@@ -170,7 +170,6 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   bool _isComputing = false;
   double _floorLevelIndex = 0;
   String _selectedFloorLevel = '2nd';
-  double _viewIndex = 0;
   String _selectedView = 'Nature View';
   String _selectedEndUnit = 'No';
   String _selectedFurnish = 'Semi Finished';
@@ -345,10 +344,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
   bool _isLoadingSalesMap = false;
   String? _salesMapError;
-  Map<int, String> _salesMapImages = {};
-  Map<int, String> _salesMapCommercialImages = {};
-  String? _erhdSalesMapImage;
-  List<_SalesMapGalleryItem> _msccSalesMapItems = [];
+  List<_SalesMapProjectGroup> _salesMapGroups = [];
+  bool _salesMapsLoaded = false;
   late final TextEditingController _lotSizeController;
   late final AnimationController _homeAnimController;
   late final Animation<double> _heroBgOpacity;
@@ -421,6 +418,26 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   ];
 
   final List<String> _projects = const ['MVLC', 'ERHD', 'MSCC'];
+  // Developments shown in the Home picker, loaded from the Supabase `projects`
+  // table. A null status means selectable; otherwise the chip is disabled and
+  // shows the status as a badge. These defaults mirror the database and are
+  // shown until (or if) the table can't be loaded.
+  List<MapEntry<String, String?>> _developmentOptions = const [
+    MapEntry('MVLC', null),
+    MapEntry('ERHD', null),
+    MapEntry('EBLF', 'Sold Out'),
+    MapEntry('GLS', 'Soon to Rise'),
+    MapEntry('LCN', 'Soon to Rise'),
+    MapEntry('MCVC', 'Soon to Rise'),
+    MapEntry('MSCC', 'Soon to Rise'),
+    MapEntry('RHM', 'Soon to Rise'),
+    MapEntry('RHN', 'Soon to Rise'),
+  ];
+  // Projects marked `paused` in the database ("Soon to Rise").
+  Set<String> _pausedProjects = {'GLS', 'LCN', 'MCVC', 'MSCC', 'RHM', 'RHN'};
+  // The `projects` table has no sold-out flag yet; a `sold_out` column is
+  // honoured if added, otherwise these codes are treated as sold out.
+  static const Set<String> _soldOutProjects = {'EBLF'};
   final List<String> _projectTitles = const [
     'Mountain View Leisure Community',
     'Eastwest Resorts Hub and Development',
@@ -484,9 +501,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
     _homeAnimController.forward();
     _updatePaymentYearsConstraints();
-    if (_selectedProject == 0 || _selectedProject == 1 || _isMsccProject) {
-      _loadSalesMaps();
-    }
+    _loadDevelopments();
+    _loadSalesMaps();
     _setupAnnouncementNotifications();
   }
 
@@ -625,11 +641,6 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   void _onProjectSelected(int index) {
     setState(() {
       _selectedProject = index;
-      _salesMapError = null;
-      _salesMapImages = {};
-      _salesMapCommercialImages = {};
-      _erhdSalesMapImage = null;
-      _msccSalesMapItems = [];
       _phaseOptions = List.from(_defaultPhases);
       _phaseIndex = 0;
       _selectedPhase = _phaseOptions.first;
@@ -638,7 +649,6 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       _selectedLotCategory = _lotCategoryOptions.first;
       _floorLevelIndex = 0;
       _selectedFloorLevel = _msccFloorLevels.first;
-      _viewIndex = 0;
       _selectedView = _msccViewOptions.first;
       _selectedEndUnit = _msccEndUnitOptions.last;
       _selectedFurnish = _msccFurnishOptions.first;
@@ -655,9 +665,6 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     });
     _lotSizeController.text = '';
     _updatePaymentYearsConstraints();
-    if ((index == 0 || index == 1 || index == 2) && !_isLoadingSalesMap) {
-      _loadSalesMaps();
-    }
     _projectDevImages = [];
     _mediaError = null;
     _isLoadingMedia = false;
@@ -677,7 +684,6 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       _phaseIndex = 0;
       _floorLevelIndex = 0;
       _selectedFloorLevel = _msccFloorLevels.first;
-      _viewIndex = 0;
       _selectedView = _msccViewOptions.first;
       _selectedEndUnit = _msccEndUnitOptions.last;
       _selectedFurnish = _msccFurnishOptions.first;
@@ -1309,22 +1315,67 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     }
   }
 
+  Future<void> _loadDevelopments() async {
+    try {
+      final dynamic response = await Supabase.instance.client
+          .from('projects')
+          .select()
+          .order('code');
+      final rows = response is List ? response : const <dynamic>[];
+
+      final available = <String>[];
+      final soldOut = <String>[];
+      final soonToRise = <String>[];
+      for (final row in rows) {
+        if (row is! Map) continue;
+        final code =
+            (row['code'] ?? row['name'])?.toString().trim().toUpperCase();
+        if (code == null || code.isEmpty) continue;
+        if (row['paused'] == true) {
+          soonToRise.add(code);
+        } else if (row['sold_out'] == true || _soldOutProjects.contains(code)) {
+          soldOut.add(code);
+        } else if (_projects.contains(code)) {
+          available.add(code);
+        } else {
+          // Active in the database but not yet supported by the app.
+          soonToRise.add(code);
+        }
+      }
+      if (rows.isEmpty || available.isEmpty || !mounted) return;
+      available.sort(
+        (a, b) => _projects.indexOf(a).compareTo(_projects.indexOf(b)),
+      );
+
+      setState(() {
+        _pausedProjects = soonToRise.toSet();
+        _developmentOptions = [
+          for (final code in available) MapEntry(code, null),
+          for (final code in soldOut) MapEntry(code, 'Sold Out'),
+          for (final code in soonToRise) MapEntry(code, 'Soon to Rise'),
+        ];
+      });
+      // Move off the current selection if it is no longer available.
+      if (!available.contains(_projects[_selectedProject])) {
+        _onProjectSelected(_projects.indexOf(available.first));
+      }
+    } catch (e) {
+      // Keep the default picker if the projects table can't be loaded.
+      debugPrint('Failed to load developments: $e');
+    }
+  }
+
   Future<void> _loadSalesMaps() async {
     if (_isLoadingSalesMap) return;
-    final project = _projects[_selectedProject].toUpperCase();
     setState(() {
       _isLoadingSalesMap = true;
       _salesMapError = null;
-      _salesMapCommercialImages = {};
-      _msccSalesMapItems = [];
     });
 
     try {
       final dynamic response = await Supabase.instance.client
           .from('uploads')
-          .select('Phase,image_URL,project,type')
-          .eq('project', project)
-          .order('Phase');
+          .select('Phase,image_URL,project,type,map_section,kind,current');
 
       final dataList =
           response is List
@@ -1333,195 +1384,72 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                   ? response['data'] as List<dynamic>
                   : <dynamic>[]);
 
-      if (project == 'ERHD') {
-        String? imageUrl;
-        for (final item in dataList) {
-          if (item is! Map) continue;
-          final projectValue = item['project']?.toString();
-          if (projectValue != null && projectValue.toUpperCase() != project) {
-            continue;
-          }
-          final imageValue = item['image_URL'] ?? item['image_url'];
-          final candidate = imageValue?.toString();
-          if (candidate != null && candidate.isNotEmpty) {
-            imageUrl = candidate;
-            break;
-          }
-        }
-
-        setState(() {
-          _salesMapImages = {};
-          _salesMapCommercialImages = {};
-          _msccSalesMapItems = [];
-          _erhdSalesMapImage = imageUrl;
-          if (imageUrl == null) {
-            _salesMapError = 'No sales map found for this project.';
-          }
-        });
-        if (imageUrl != null) {
-          _warmImageCache([imageUrl]);
-        }
-        return;
-      }
-
-      if (project == 'MSCC') {
-        final msccItems = <MapEntry<int?, _SalesMapGalleryItem>>[];
-        for (final item in dataList) {
-          if (item is! Map) continue;
-          final projectValue = item['project']?.toString();
-          if (projectValue == null || projectValue.toUpperCase() != project) {
-            continue;
-          }
-          final imageValue = item['image_URL'] ?? item['image_url'];
-          final imageUrl = imageValue?.toString();
-          if (imageUrl == null || imageUrl.isEmpty) continue;
-
-          final phasesRow = item['phases'];
-          final phaseUpper = item['Phase'] ?? item['phase'];
-          final typeValue = item['type'] ?? item['Type'];
-
-          int? phaseNumber;
-          if (phaseUpper is num) {
-            phaseNumber = phaseUpper.toInt();
-          } else if (phaseUpper != null) {
-            phaseNumber = int.tryParse(phaseUpper.toString());
-          }
-          if (phaseNumber == null &&
-              phasesRow is Map &&
-              phasesRow['name'] != null) {
-            final nameString = phasesRow['name'].toString();
-            final match = RegExp(r'\d+').firstMatch(nameString);
-            if (match != null) {
-              phaseNumber = int.tryParse(match.group(0)!);
-            }
-          }
-
-          int? floorNumber = phaseNumber;
-          if (floorNumber == null && typeValue != null) {
-            final match = RegExp(r'\d+').firstMatch(typeValue.toString());
-            if (match != null) {
-              floorNumber = int.tryParse(match.group(0)!);
-            }
-          }
-
-          final title = 'Floor ${floorNumber ?? (msccItems.length + 1)}';
-
-          msccItems.add(
-            MapEntry(
-              floorNumber,
-              _SalesMapGalleryItem(title: title, url: imageUrl),
-            ),
-          );
-        }
-
-        msccItems.sort((a, b) {
-          final aNum = a.key;
-          final bNum = b.key;
-          if (aNum != null && bNum != null) {
-            return aNum.compareTo(bNum);
-          }
-          if (aNum != null) return -1;
-          if (bNum != null) return 1;
-          return 0;
-        });
-
-        setState(() {
-          _erhdSalesMapImage = null;
-          _salesMapImages = {};
-          _salesMapCommercialImages = {};
-          _msccSalesMapItems = msccItems.map((e) => e.value).toList();
-          if (_msccSalesMapItems.isEmpty) {
-            _salesMapError = 'No sales maps found.';
-          }
-        });
-        if (msccItems.isNotEmpty) {
-          _warmImageCache(msccItems.map((e) => e.value.url).toList());
-        }
-        return;
-      }
-
-      if (dataList.isEmpty) {
-        setState(() {
-          _salesMapImages = {};
-          _salesMapCommercialImages = {};
-          _erhdSalesMapImage = null;
-          _msccSalesMapItems = [];
-          _salesMapError = 'No sales maps found.';
-        });
-        return;
-      }
-
-      final residentialImages = <int, String>{};
-      final commercialImages = <int, String>{};
+      final mapsByProject = <String, List<_SalesMapEntry>>{};
       for (final item in dataList) {
         if (item is! Map) continue;
-        final phasesRow = item['phases'];
-        final imageValue = item['image_URL'] ?? item['image_url'];
-        final phaseUpper = item['Phase'] ?? item['phase'];
-        final projectValue = item['project'];
+        final kind = item['kind']?.toString().toLowerCase().trim();
+        if (kind != null && kind.isNotEmpty && kind != 'map') continue;
+        if (item['current'] == false) continue;
+
+        final rawProject = item['project']?.toString().trim();
+        if (rawProject == null || rawProject.isEmpty) continue;
+        // Paused projects' uploads are labelled like "MSCC - paused".
+        final project =
+            rawProject
+                .replaceAll(RegExp(r'paused', caseSensitive: false), '')
+                .replaceAll(RegExp(r'[\s_-]+$'), '')
+                .trim()
+                .toUpperCase();
+        if (project.isEmpty) continue;
+
+        final imageUrl = (item['image_URL'] ?? item['image_url'])?.toString();
+        if (imageUrl == null || imageUrl.isEmpty) continue;
+
+        final phaseValue = item['Phase'] ?? item['phase'];
+        final phase =
+            phaseValue is num
+                ? phaseValue.toInt()
+                : int.tryParse(phaseValue?.toString() ?? '');
+        final section = item['map_section']?.toString().trim();
         final typeValue = item['type'] ?? item['Type'];
-        final normalizedType = typeValue?.toString().toLowerCase().trim();
+        final isCommercial =
+            typeValue?.toString().toLowerCase().trim() == 'commercial';
 
-        int? phaseNumber;
-        // direct numeric Phase column (uppercase)
-        if (phaseUpper is num) {
-          phaseNumber = phaseUpper.toInt();
-        } else if (phaseUpper != null) {
-          phaseNumber = int.tryParse(phaseUpper.toString());
-        }
-        // fallback: parse from phases.name like "PHASE 1"
-        if (phaseNumber == null &&
-            phasesRow is Map &&
-            phasesRow['name'] != null) {
-          final nameString = phasesRow['name'].toString();
-          final match = RegExp(r'\d+').firstMatch(nameString);
-          if (match != null) {
-            phaseNumber = int.tryParse(match.group(0)!);
-          }
-        }
-        final projectString = projectValue?.toString();
-        // ensure it matches the current project (MVLC)
-        if (projectString != null && projectString.toUpperCase() != project) {
-          continue;
-        }
-
-        final imageUrl = imageValue?.toString();
-        final isCommercial = normalizedType == 'commercial';
-        final isResidential =
-            normalizedType == 'residential' ||
-            normalizedType == null ||
-            normalizedType.isEmpty;
-
-        if (phaseNumber != null && imageUrl != null && imageUrl.isNotEmpty) {
-          if (isCommercial) {
-            commercialImages[phaseNumber] = imageUrl;
-          } else if (isResidential && phaseNumber >= 1 && phaseNumber <= 3) {
-            residentialImages[phaseNumber] = imageUrl;
-          }
-        }
+        mapsByProject
+            .putIfAbsent(project, () => [])
+            .add(
+              _SalesMapEntry(
+                phase: phase,
+                section: section == null || section.isEmpty ? null : section,
+                isCommercial: isCommercial,
+                url: imageUrl,
+              ),
+            );
       }
 
+      final groups = [
+        for (final entry in mapsByProject.entries)
+          _SalesMapProjectGroup(
+            project: entry.key,
+            maps: entry.value..sort(_SalesMapEntry.compare),
+          ),
+      ];
+
+      if (!mounted) return;
       setState(() {
-        _erhdSalesMapImage = null;
-        _salesMapImages = residentialImages;
-        _salesMapCommercialImages = commercialImages;
-        _msccSalesMapItems = [];
-        if (_salesMapImages.isEmpty && _salesMapCommercialImages.isEmpty) {
-          _salesMapError = 'No sales maps found.';
-        }
+        _salesMapGroups = groups;
+        _salesMapsLoaded = true;
       });
       final cacheImages = [
-        ...residentialImages.values,
-        ...commercialImages.values,
+        for (final group in groups) ...group.maps.map((e) => e.url),
       ];
       if (cacheImages.isNotEmpty) {
         _warmImageCache(cacheImages);
       }
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _salesMapError = 'Failed to load sales maps. $e';
-        _erhdSalesMapImage = null;
-        _msccSalesMapItems = [];
       });
     } finally {
       if (mounted) {
@@ -2502,10 +2430,6 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                                                       if (val == null) return;
                                                       setState(() {
                                                         _selectedView = val;
-                                                        _viewIndex =
-                                                            _msccViewOptions
-                                                                .indexOf(val)
-                                                                .toDouble();
                                                       });
                                                     },
                                                     decoration: InputDecoration(
@@ -3220,11 +3144,24 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
             scrollDirection: Axis.horizontal,
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
-              children: List.generate(_projects.length, (index) {
-                final isSelected = index == _selectedProject;
+              children: List.generate(_developmentOptions.length, (i) {
+                final option = _developmentOptions[i];
+                final code = option.key;
+                final status = option.value;
+                final isAvailable = status == null;
+                final index = _projects.indexOf(code);
+                final isSelected = isAvailable && index == _selectedProject;
+                if (!isAvailable) {
+                  return Padding(
+                    padding: EdgeInsets.only(
+                      right: i == _developmentOptions.length - 1 ? 0 : 10,
+                    ),
+                    child: _buildUnavailableDevelopmentChip(code, status),
+                  );
+                }
                 return Padding(
                   padding: EdgeInsets.only(
-                    right: index == _projects.length - 1 ? 0 : 10,
+                    right: i == _developmentOptions.length - 1 ? 0 : 10,
                   ),
                   child: GestureDetector(
                     onTap: () => _onProjectSelected(index),
@@ -3261,7 +3198,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                           ),
                           const SizedBox(width: 8),
                           Text(
-                            _projects[index],
+                            code,
                             style: TextStyle(
                               fontWeight: FontWeight.w700,
                               color:
@@ -3279,6 +3216,67 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildUnavailableDevelopmentChip(String code, String status) {
+    final isSoldOut = status == 'Sold Out';
+    final badgeColor =
+        isSoldOut ? const Color(0xFFE5484D) : const Color(0xFF2BB673);
+    return GestureDetector(
+      onTap: () {
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(
+            SnackBar(
+              content: Text(
+                isSoldOut ? '$code is sold out.' : '$code is soon to rise.',
+              ),
+            ),
+          );
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF7F8FA),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: const Color(0xFFE3E7EC), width: 1.2),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(
+              Icons.apartment_rounded,
+              size: 18,
+              color: Color(0xFFB4BDC7),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              code,
+              style: const TextStyle(
+                fontWeight: FontWeight.w700,
+                color: Color(0xFFA0AAB5),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: badgeColor.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Text(
+                status,
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w800,
+                  color: badgeColor,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -3612,315 +3610,246 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   }
 
   Widget _buildSalesMapContent() {
-    final project = _projects[_selectedProject];
-    final isMvProject = project == 'MVLC';
-    final isErhdProject = project == 'ERHD';
-    final isMsccProject = project == 'MSCC';
-    final hasMvSalesMaps =
-        _salesMapImages.isNotEmpty || _salesMapCommercialImages.isNotEmpty;
-    final hasMsccSalesMaps = _msccSalesMapItems.isNotEmpty;
+    final hasSalesMaps = _salesMapsLoaded;
 
-    if (!isMvProject && !isErhdProject && !isMsccProject) {
-      return const Center(
-        child: Text(
-          'Sales maps are not available for this project.',
-          style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+    if (!hasSalesMaps && !_isLoadingSalesMap && _salesMapError == null) {
+      _loadSalesMaps();
+    }
+
+    if (_isLoadingSalesMap && !hasSalesMaps) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_salesMapError != null && !hasSalesMaps) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Text(
+                _salesMapError!,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.redAccent,
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            ElevatedButton(
+              onPressed: _isLoadingSalesMap ? null : _loadSalesMaps,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF0F88D5),
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 18,
+                  vertical: 10,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                elevation: 0,
+              ),
+              child: const Text(
+                'Retry',
+                style: TextStyle(fontWeight: FontWeight.w700),
+              ),
+            ),
+          ],
         ),
       );
     }
 
-    if (isMvProject) {
-      if (!hasMvSalesMaps && !_isLoadingSalesMap && _salesMapError == null) {
-        _loadSalesMaps();
-      }
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = constraints.maxWidth;
+        final horizontalPadding = _pageHorizontalPadding(width);
+        final maxWidth = min(_contentMaxWidth(width), 720.0);
 
-      if (_isLoadingSalesMap && !hasMvSalesMaps) {
-        return const Center(child: CircularProgressIndicator());
-      }
-
-      if (_salesMapError != null && !hasMvSalesMaps) {
-        return Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Text(
-                  _salesMapError!,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.redAccent,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 12),
-              ElevatedButton(
-                onPressed: _isLoadingSalesMap ? null : _loadSalesMaps,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF0F88D5),
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 18,
-                    vertical: 10,
-                  ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  elevation: 0,
-                ),
-                child: const Text(
-                  'Retry',
-                  style: TextStyle(fontWeight: FontWeight.w700),
-                ),
-              ),
-            ],
+        Widget constrained(Widget child) => Align(
+          alignment: Alignment.topCenter,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: maxWidth),
+            child: child,
           ),
         );
-      }
 
-      final commercialEntries =
-          _salesMapCommercialImages.entries.toList()
-            ..sort((a, b) => a.key.compareTo(b.key));
+        // Only show the development picked on the Home page.
+        final selectedProject = _projects[_selectedProject].toUpperCase();
+        final isSoonToRise = _pausedProjects.contains(selectedProject);
+        final maps = [
+          for (final group in _salesMapGroups)
+            if (group.project == selectedProject) ...group.maps,
+        ];
+        final children = <Widget>[];
+        if (!isSoonToRise) {
+          final galleryImages = maps.map((e) => e.url).toList();
+          final galleryCaptions =
+              maps.map((e) => '$selectedProject ${e.title}').toList();
+          children.add(
+            constrained(
+              _buildSalesMapSectionHeader(
+                selectedProject,
+                maps.length == 1 ? '1 map' : '${maps.length} maps',
+              ),
+            ),
+          );
+          if (maps.isEmpty) {
+            children.add(
+              constrained(
+                _buildSalesMapCard('$selectedProject Sales Map', null),
+              ),
+            );
+          }
+          for (final entry in maps) {
+            children.add(
+              constrained(
+                _buildSalesMapCard(
+                  entry.title,
+                  entry.url,
+                  galleryImages: galleryImages,
+                  galleryCaptions: galleryCaptions,
+                ),
+              ),
+            );
+          }
+        }
 
-      final maps = <Widget>[
-        for (var i = 0; i < 3; i++)
-          _buildSalesMapCard('Phase ${i + 1}', _salesMapImages[i + 1]),
-        for (final entry in commercialEntries)
-          _buildSalesMapCard('Phase ${entry.key} - commercial', entry.value),
-      ];
+        if (isSoonToRise) {
+          children.add(
+            constrained(
+              _buildSalesMapSectionHeader(
+                'Soon to Rise',
+                'Sales maps will be available once this project launches',
+              ),
+            ),
+          );
+          children.add(constrained(_buildSoonToRiseCard(selectedProject)));
+        }
 
-      return LayoutBuilder(
-        builder: (context, constraints) {
-          final width = constraints.maxWidth;
-          final horizontalPadding = _pageHorizontalPadding(width);
-          final maxWidth = _contentMaxWidth(width);
-          final wrappedMaps =
-              maps
-                  .map(
-                    (card) => Align(
-                      alignment: Alignment.topCenter,
-                      child: ConstrainedBox(
-                        constraints: BoxConstraints(maxWidth: maxWidth),
-                        child: card,
-                      ),
-                    ),
-                  )
-                  .toList();
-          return ListView(
+        return RefreshIndicator(
+          onRefresh: _loadSalesMaps,
+          child: ListView(
+            physics: const AlwaysScrollableScrollPhysics(),
             padding: EdgeInsets.fromLTRB(
               horizontalPadding,
-              20,
+              12,
               horizontalPadding,
               24,
             ),
-            children: wrappedMaps,
-          );
-        },
-      );
-    }
-
-    if (isMsccProject) {
-      if (!hasMsccSalesMaps && !_isLoadingSalesMap && _salesMapError == null) {
-        _loadSalesMaps();
-      }
-
-      if (_isLoadingSalesMap && !hasMsccSalesMaps) {
-        return const Center(child: CircularProgressIndicator());
-      }
-
-      if (_salesMapError != null && !hasMsccSalesMaps) {
-        return Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Text(
-                  _salesMapError!,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.redAccent,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 12),
-              ElevatedButton(
-                onPressed: _isLoadingSalesMap ? null : _loadSalesMaps,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF0F88D5),
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 18,
-                    vertical: 10,
-                  ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  elevation: 0,
-                ),
-                child: const Text(
-                  'Retry',
-                  style: TextStyle(fontWeight: FontWeight.w700),
-                ),
-              ),
-            ],
+            children: children,
           ),
         );
-      }
-
-      final galleryImages = _msccSalesMapItems.map((e) => e.url).toList();
-      final galleryCaptions = _msccSalesMapItems.map((e) => e.title).toList();
-
-      return LayoutBuilder(
-        builder: (context, constraints) {
-          final width = constraints.maxWidth;
-          final horizontalPadding = _pageHorizontalPadding(width);
-          final maxWidth = min(_contentMaxWidth(width), 720.0);
-          return ListView(
-            padding: EdgeInsets.fromLTRB(
-              horizontalPadding,
-              20,
-              horizontalPadding,
-              24,
-            ),
-            children: [
-              for (final item in _msccSalesMapItems)
-                Align(
-                  alignment: Alignment.topCenter,
-                  child: ConstrainedBox(
-                    constraints: BoxConstraints(maxWidth: maxWidth),
-                    child: _buildSalesMapCard(
-                      item.title,
-                      item.url,
-                      galleryImages: galleryImages,
-                      galleryCaptions: galleryCaptions,
-                    ),
-                  ),
-                ),
-            ],
-          );
-        },
-      );
-    }
-
-    if (isErhdProject) {
-      if (_erhdSalesMapImage == null &&
-          !_isLoadingSalesMap &&
-          _salesMapError == null) {
-        _loadSalesMaps();
-      }
-
-      if (_isLoadingSalesMap && _erhdSalesMapImage == null) {
-        return const Center(child: CircularProgressIndicator());
-      }
-
-      if (_salesMapError != null && _erhdSalesMapImage == null) {
-        return Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Text(
-                  _salesMapError!,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.redAccent,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 12),
-              ElevatedButton(
-                onPressed: _isLoadingSalesMap ? null : _loadSalesMaps,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF0F88D5),
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 18,
-                    vertical: 10,
-                  ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  elevation: 0,
-                ),
-                child: const Text(
-                  'Retry',
-                  style: TextStyle(fontWeight: FontWeight.w700),
-                ),
-              ),
-            ],
-          ),
-        );
-      }
-
-      return LayoutBuilder(
-        builder: (context, constraints) {
-          final width = constraints.maxWidth;
-          final horizontalPadding = _pageHorizontalPadding(width);
-          final maxWidth = min(_contentMaxWidth(width), 720.0);
-          return Center(
-            child: SingleChildScrollView(
-              padding: EdgeInsets.fromLTRB(
-                horizontalPadding,
-                20,
-                horizontalPadding,
-                24,
-              ),
-              child: ConstrainedBox(
-                constraints: BoxConstraints(maxWidth: maxWidth),
-                child: _buildSalesMapCard(
-                  'ERHD Sales Map',
-                  _erhdSalesMapImage,
-                  galleryImages:
-                      _erhdSalesMapImage != null ? [_erhdSalesMapImage!] : null,
-                  galleryCaptions:
-                      _erhdSalesMapImage != null ? const ['Sales Map'] : null,
-                ),
-              ),
-            ),
-          );
-        },
-      );
-    }
-
-    return const SizedBox.shrink();
+      },
+    );
   }
 
-  List<_SalesMapGalleryItem> _salesMapGalleryItems() {
-    final project = _projects[_selectedProject];
-    if (project == 'MSCC') {
-      return List<_SalesMapGalleryItem>.from(_msccSalesMapItems);
-    }
+  Widget _buildSalesMapSectionHeader(String title, String subtitle) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(4, 12, 4, 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Container(
+            width: 4,
+            height: 32,
+            decoration: BoxDecoration(
+              color: const Color(0xFF2BB673),
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF2D3A4B),
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  subtitle,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF6C7A89),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
-    final gallery = <_SalesMapGalleryItem>[];
-    final residentialEntries =
-        _salesMapImages.entries.toList()
-          ..sort((a, b) => a.key.compareTo(b.key));
-    gallery.addAll(
-      residentialEntries.map(
-        (entry) =>
-            _SalesMapGalleryItem(title: 'Phase ${entry.key}', url: entry.value),
+  Widget _buildSoonToRiseCard(String project) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.10),
+            blurRadius: 14,
+            offset: const Offset(0, 8),
+          ),
+        ],
+        border: Border.all(color: const Color(0xFFE4E9F1)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 52,
+            height: 52,
+            decoration: BoxDecoration(
+              color: const Color(0xFFF4F7FB),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Icon(
+              Icons.apartment,
+              color: Color(0xFF0F88D5),
+              size: 28,
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Text(
+              project,
+              style: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w800,
+                color: Color(0xFF2D3A4B),
+              ),
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: const Color(0xFF2BB673).withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: const Text(
+              'Soon to Rise',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+                color: Color(0xFF2BB673),
+              ),
+            ),
+          ),
+        ],
       ),
     );
-    final commercialEntries =
-        _salesMapCommercialImages.entries.toList()
-          ..sort((a, b) => a.key.compareTo(b.key));
-    gallery.addAll(
-      commercialEntries.map(
-        (entry) => _SalesMapGalleryItem(
-          title: 'Phase ${entry.key} - commercial',
-          url: entry.value,
-        ),
-      ),
-    );
-    return gallery;
   }
 
   Widget _buildSalesMapCard(
@@ -3982,19 +3911,15 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                               color: Color(0xFF2BB673),
                             ),
                             onPressed: () {
-                              List<String> urls;
-                              List<String>? captions;
-                              if (galleryImages != null &&
-                                  galleryImages.isNotEmpty) {
-                                urls = List<String>.from(galleryImages);
-                                captions = galleryCaptions;
-                              } else {
-                                final galleryItems = _salesMapGalleryItems();
-                                urls = galleryItems.map((e) => e.url).toList();
-                                captions =
-                                    galleryItems.map((e) => e.title).toList();
-                              }
-                              if (urls.isEmpty) return;
+                              final hasGallery =
+                                  galleryImages != null &&
+                                  galleryImages.isNotEmpty;
+                              final urls =
+                                  hasGallery
+                                      ? List<String>.from(galleryImages)
+                                      : [imageUrl];
+                              final captions =
+                                  hasGallery ? galleryCaptions : [title];
                               final startIndex = urls.indexOf(imageUrl);
                               _openImageGalleryFullScreen(
                                 context,
@@ -4029,17 +3954,13 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
             onTap:
                 imageUrl != null
                     ? () {
-                      List<String> urls;
-                      List<String>? captions;
-                      if (galleryImages != null && galleryImages.isNotEmpty) {
-                        urls = List<String>.from(galleryImages);
-                        captions = galleryCaptions;
-                      } else {
-                        final galleryItems = _salesMapGalleryItems();
-                        urls = galleryItems.map((e) => e.url).toList();
-                        captions = galleryItems.map((e) => e.title).toList();
-                      }
-                      if (urls.isEmpty) return;
+                      final hasGallery =
+                          galleryImages != null && galleryImages.isNotEmpty;
+                      final urls =
+                          hasGallery
+                              ? List<String>.from(galleryImages)
+                              : [imageUrl];
+                      final captions = hasGallery ? galleryCaptions : [title];
                       final startIndex = urls.indexOf(imageUrl);
                       _openImageGalleryFullScreen(
                         context,
@@ -5421,7 +5342,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     _hermosaKbLoading = true;
     _hermosaKbError = null;
     try {
-      // await pdfrx.pdfrxFlutterInitialize();
+      await pdfrx.pdfrxFlutterInitialize();
       final chunks = <_HermosaKbChunk>[];
       chunks.addAll(await _extractHermosaPdfChunks('assets/mvlc.pdf', 'MVLC'));
       chunks.addAll(await _extractHermosaPdfChunks('assets/erhd.pdf', 'ERHD'));
@@ -5453,7 +5374,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     final chunks = <_HermosaKbChunk>[];
     for (final page in document.pages) {
       final pageText = await page.loadText();
-      final fullText = pageText.fullText.trim();
+      final fullText = pageText?.fullText.trim() ?? '';
       if (fullText.isEmpty) continue;
       final pageChunks = _splitHermosaText(fullText, maxChunkLength: 700);
       for (final chunk in pageChunks) {
@@ -5606,19 +5527,51 @@ class _HermosaKbChunk {
   final Set<String> tokens;
 }
 
-class _GeminiResult {
-  const _GeminiResult({required this.statusCode, this.reply, this.bodySnippet});
+class _SalesMapEntry {
+  const _SalesMapEntry({
+    required this.phase,
+    required this.section,
+    required this.isCommercial,
+    required this.url,
+  });
 
-  final int statusCode;
-  final String? reply;
-  final String? bodySnippet;
+  final int? phase;
+  final String? section;
+  final bool isCommercial;
+  final String url;
+
+  String get title {
+    if (isCommercial) {
+      return phase != null ? 'Phase $phase - Commercial' : 'Commercial';
+    }
+    if (phase == null) {
+      return section != null ? 'Section $section' : 'Sales Map';
+    }
+    if (section == null) return 'Phase $phase';
+    // Single-letter sections read as "Phase 1A"; named ones as "Phase 1 East".
+    return section!.length == 1
+        ? 'Phase $phase$section'
+        : 'Phase $phase $section';
+  }
+
+  // Residential before commercial, then by phase, then lettered sections
+  // (A, B, C) before named ones (East).
+  static int compare(_SalesMapEntry a, _SalesMapEntry b) {
+    if (a.isCommercial != b.isCommercial) return a.isCommercial ? 1 : -1;
+    final phaseCompare = (a.phase ?? 1 << 20).compareTo(b.phase ?? 1 << 20);
+    if (phaseCompare != 0) return phaseCompare;
+    int rank(String? s) => s == null ? 0 : (s.length == 1 ? 1 : 2);
+    final rankCompare = rank(a.section).compareTo(rank(b.section));
+    if (rankCompare != 0) return rankCompare;
+    return (a.section ?? '').compareTo(b.section ?? '');
+  }
 }
 
-class _SalesMapGalleryItem {
-  const _SalesMapGalleryItem({required this.title, required this.url});
+class _SalesMapProjectGroup {
+  const _SalesMapProjectGroup({required this.project, required this.maps});
 
-  final String title;
-  final String url;
+  final String project;
+  final List<_SalesMapEntry> maps;
 }
 
 // Simple abstract triangle accent for header corners.

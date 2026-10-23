@@ -54,7 +54,7 @@ dependencies:
   youtube_player_iframe: ^5.1.2
   syncfusion_flutter_pdfviewer: ^31.1.19
   http: ^1.2.2
-  pdfrx: ^1.0.101
+  pdfrx: ^2.10.0
   flutter_svg: ^2.0.10
 
 dev_dependencies:
@@ -121,8 +121,8 @@ flutter:
 flutter_launcher_icons:
   android: true
   ios: true
-  image_path: "image_assets/vhbcicon.png"
+  image_path: "image_assets/vhbcicon_launcher.png"
   adaptive_icon_background: "#FFFFFF"
-  adaptive_icon_foreground: "image_assets/vhbcicon.png"
+  adaptive_icon_foreground: "image_assets/vhbcicon_adaptive.png"
 
 
